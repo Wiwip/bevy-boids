@@ -13,19 +13,18 @@ use bevy_inspector_egui::WorldInspectorPlugin;
 use std::f32;
 use std::f32::consts::PI;
 use crate::boids::{alignment_system, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, coherence_system, desired_velocity_system, DesiredVelocity, GameRules, move_system, Movement, Particle, separation_system, WorldBound};
-use crate::debug_systems::{Dbg, debug_cohesion, debug_lines, debug_print, debug_separation, DebugConfig, DebugSeparation, forces_debug, mouse_track, MouseTracking};
+use crate::debug_systems::{BoidsDebugTools, Dbg, DebugSeparation, MouseTracking};
 use crate::helper::velocity_angle;
 
 fn main() {
-    static DEBUG: &str = "debug";
-
     App::new()
         .add_startup_system(setup)
         .add_plugins(DefaultPlugins)
         .add_plugin(DebugLinesPlugin::default())
+        .add_plugin(BoidsDebugTools)
          // .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(InspectorPlugin::<BoidsRules>::new())
-        .add_plugin(InspectorPlugin::<DebugConfig>::new())
+
         .insert_resource(GameRules {
             left: -1400.0 / 2.0,
             right: 1400.0 / 2.0,
@@ -66,22 +65,7 @@ fn main() {
                 .before(move_system)
         )
 
-        // Debug systems
-        .insert_resource(DebugConfig {
-            debug_location: vec3(-500.0, 400.0, 0.0),
-            debug_vector_mag: 2.0,
-            display_separation_sum: true,
-            display_separation: true,
-            display_cohesion: true,
-            display_alignment: true,
-            ..default()
-        })
-        .add_stage_after(CoreStage::Update, DEBUG, SystemStage::single_threaded())
-        .add_system_to_stage(DEBUG, debug_separation)
-        .add_system_to_stage(DEBUG, debug_lines)
-        .add_system_to_stage(DEBUG, forces_debug)
-        .add_system_to_stage(DEBUG, mouse_track)
-        .add_system_to_stage(DEBUG, debug_print)
+
         .run();
 }
 
