@@ -3,17 +3,19 @@ use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_prototype_debug_lines::DebugLines;
-use rand_distr::num_traits::pow;
-use crate::boids::{BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, Movement, Particle, WorldBound};
+use rand_distr::num_traits::{pow, Pow};
+use crate::boids::{BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, Movement, Boid, WorldBoundForce, alignment_system};
 
-#[derive(Component)]
-pub struct Dbg;
 
-#[derive(Component)]
-pub struct DebugSeparation;
-
-#[derive(Component)]
-pub struct MouseTracking;
+#[derive(Component, Default)]
+pub struct DebugBoid {
+    pub show_separation: bool,
+    pub show_cohesion: bool,
+    pub show_alignment: bool,
+    pub show_perception_range: bool,
+    pub color: Color,
+    pub track_mouse: bool,
+}
 
 #[derive(Resource, Inspectable, Default)]
 pub struct DebugConfig {
@@ -31,6 +33,13 @@ pub struct DebugConfig {
     pub debug_vector_mag: f32,
 }
 
+#[derive(Resource, Inspectable, Default)]
+pub struct DebugSystemsStatus {
+    pub separation_system: bool,
+    pub cohesion_system: bool,
+    pub alignment_system: bool,
+}
+
 pub struct BoidsDebugTools;
 
 impl Plugin for BoidsDebugTools {
@@ -39,13 +48,15 @@ impl Plugin for BoidsDebugTools {
 
         app.add_stage_after(CoreStage::Update, DEBUG, SystemStage::single_threaded());
         app.add_system_to_stage(DEBUG, debug_separation);
-        app.add_system_to_stage(DEBUG, debug_lines);
-        app.add_system_to_stage(DEBUG, forces_debug);
-        app.add_system_to_stage(DEBUG, mouse_track);
-        app.add_system_to_stage(DEBUG, debug_print);
+        app.add_system_to_stage(DEBUG, debug_cohesion);
+        app.add_system_to_stage(DEBUG, debug_alignment);
         app.add_system_to_stage(DEBUG, debug_perception_range);
-        app.add_plugin(InspectorPlugin::<DebugConfig>::new());
+        app.add_system_to_stage(DEBUG, debug_world_bounds);
+        app.add_system_to_stage(DEBUG, other_display_debug);
+        app.add_system_to_stage(DEBUG, mouse_track);
+        app.add_system_to_stage(DEBUG, color_debug_boid_system);
 
+        app.add_plugin(InspectorPlugin::<DebugConfig>::new());
         app.insert_resource(DebugConfig {
             debug_location: vec3(-500.0, 400.0, 0.0),
             debug_vector_mag: 10.0,
@@ -53,62 +64,58 @@ impl Plugin for BoidsDebugTools {
             display_separation: true,
             display_cohesion: true,
             display_alignment: true,
+            display_perceived: true,
             ..default()
         });
+
+        app.add_plugin(InspectorPlugin::<DebugSystemsStatus>::new());
+        app.insert_resource(DebugSystemsStatus::default());
     }
 }
 
-pub fn debug_print(mut query: Query<(&Transform, &Movement, &BoidsCoherence, &BoidsAlignment, &BoidsSeparation), With<Dbg>>) {
-    let Ok((tf, mov, cohe, ali, sep)) = query.get_single()
-        else {
-            return;
-        };
-    //println!("V:{} P:{} Coh:{} Ali:{} Sep:{}", mov.vel.length(), tf.translation, cohe.coherence, ali.alignment, sep.separation);
-}
-
-
-pub fn forces_debug(
-    query: Query<(&Transform, &Movement, &Dbg, &BoidsAlignment, &BoidsCoherence, &BoidsSeparation, &WorldBound, &DesiredVelocity)>,
+pub fn other_display_debug(
+    query: Query<(&Transform, &Movement, &BoidsAlignment, &BoidsCoherence, &BoidsSeparation, &WorldBoundForce, &DesiredVelocity, &DebugBoid)>,
     config: Res<DebugConfig>,
     mut lines: ResMut<DebugLines>,
 ) {
-    let Ok((tf, mov, debug, ali, coh, sep, bound, des)) = query.get_single()
-        else { return; };
+    for (tf, mov, ali, coh, sep, bound, des, boid) in query.iter(){
+        let duration = 0.0;     // Duration of 0 will show the line for 1 frame.
+        let acc = bound.force + ali.force + coh.force + sep.force + des.force;
 
-    let duration = 0.0;     // Duration of 0 will show the line for 1 frame.
-    let acc = bound.force + ali.force + coh.force + sep.force + des.force;
-    if config.display_bound {
-        lines.line_colored(tf.translation, tf.translation + bound.force, duration, Color::CYAN);
-    }
+        // Don't display all other vectors // TODO better handling of separate vector viewer
+        if !boid.track_mouse {
+            continue;
+        }
+        if config.display_alignment {
+            lines.line_colored(config.debug_location, config.debug_location + ali.force * config.debug_vector_mag, duration, Color::PURPLE);
+        }
 
-    if config.display_alignment {
-        lines.line_colored(tf.translation, tf.translation + ali.force, duration, Color::PURPLE);
-        lines.line_colored(config.debug_location, config.debug_location + ali.force * config.debug_vector_mag, duration, Color::PURPLE);
-    }
+        if config.display_cohesion {
+            lines.line_colored(config.debug_location, config.debug_location + coh.force * config.debug_vector_mag, duration, Color::GREEN);
+        }
 
-    if config.display_cohesion {
-        lines.line_colored(tf.translation, tf.translation + coh.force, duration, Color::GREEN);
-        lines.line_colored(config.debug_location, config.debug_location + coh.force * config.debug_vector_mag, duration, Color::GREEN);
-    }
+        if config.display_separation_sum {
+            lines.line_colored(config.debug_location, config.debug_location + sep.force * config.debug_vector_mag, duration, Color::RED);
+        }
 
-    if config.display_separation_sum {
-        lines.line_colored(tf.translation, tf.translation + sep.force, duration, Color::RED);
-        lines.line_colored(config.debug_location, config.debug_location + sep.force * config.debug_vector_mag, duration, Color::RED);
-    }
-
-    if config.desired_velocity {
-        lines.line_colored(tf.translation, tf.translation + des.force, duration, Color::WHITE);
-    }
-
-    if config.velocity_info {
-        lines.line_colored(tf.translation, tf.translation + mov.vel, duration, Color::PURPLE);
-
-        lines.line_colored(tf.translation, tf.translation + acc, duration, Color::BLACK);
-        lines.line_colored(config.debug_location, config.debug_location + acc * config.debug_vector_mag, duration, Color::ORANGE);
+        if config.velocity_info {
+            lines.line_colored(tf.translation, tf.translation + mov.vel * config.debug_vector_mag, duration, Color::PURPLE);
+            lines.line_colored(config.debug_location, config.debug_location + des.force * config.debug_vector_mag, duration, Color::WHITE);
+            lines.line_colored(config.debug_location, config.debug_location + acc * config.debug_vector_mag, duration, Color::ORANGE);
+        }
     }
 }
 
-pub fn debug_lines(mut lines: ResMut<DebugLines>, rules: Res<GameRules>) {
+pub fn debug_world_bounds(
+    query: Query<(&Transform, &WorldBoundForce, &DebugBoid)>,
+    mut lines: ResMut<DebugLines>,
+    rules: Res<GameRules>,
+    config: Res<DebugConfig>,
+) {
+    if !config.display_bound {
+        return;
+    }
+
     let start = vec3(rules.left, rules.top, 0.0);
     let end = vec3(rules.right, rules.top, 0.0);
     let duration = 0.0;     // Duration of 0 will show the line for 1 frame.
@@ -118,77 +125,145 @@ pub fn debug_lines(mut lines: ResMut<DebugLines>, rules: Res<GameRules>) {
     let end = vec3(rules.right, rules.bottom, 0.0);
     let duration = 0.0;     // Duration of 0 will show the line for 1 frame.
     lines.line_colored(start, end, duration, Color::BLACK);
+
+    for (tf, bound, debug) in query.iter(){
+        lines.line_colored(tf.translation, tf.translation + bound.force, duration, Color::CYAN);
+    }
 }
 
 pub fn debug_cohesion(
-    query: Query<(Entity, &Transform, &Movement, &BoidsCoherence), With<Dbg>>,
-    list: Query<(Entity, &Transform), With<Particle>>,
+    query: Query<(Entity, &Transform, &BoidsCoherence, &DebugBoid)>,
+    list: Query<(Entity, &Transform, &Boid)>,
     rules: Res<BoidsRules>,
+    config: Res<DebugConfig>,
+    mut status: ResMut<DebugSystemsStatus>,
     mut lines: ResMut<DebugLines>,
 ) {
-    let (ent, tf, mov, coh) = query.single();
-    let mut vec = vec3(0.0, 0.0, 0.0);
-    let mut count = 0;
-
-    for (other_ent, other_tf) in &list {
-        if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
-
-        let distance = other_tf.translation.distance(tf.translation);
-        if distance < rules.perception_range {
-            vec += other_tf.translation;
-            count += 1;
-        }
+    if !config.display_cohesion {
+        status.cohesion_system = false;
+        return;
     }
 
-    match count {
-        0 => {} // no division by zero
-        _ => {
-            let mut steering = vec / count as f32;
-            steering = steering - tf.translation;
-            lines.line_colored(tf.translation, tf.translation + steering, 0.0, Color::BLACK); // * res.coherence_factor;
+    for (ent, tf, coh, debug) in query.iter() {
+        // Display only for debug_cohesion enabled boids
+        if !debug.show_cohesion {
+            continue;
         }
+
+        let mut vec = vec3(0.0, 0.0, 0.0);
+        let mut count = 0;
+
+
+        for (other_ent, other_tf, boid) in &list {
+            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
+
+            let distance = other_tf.translation.distance(tf.translation);
+            if distance < rules.perception_range {
+                vec += other_tf.translation;
+                count += 1;
+            }
+        }
+
+        match count {
+            0 => {} // No to division by zero.
+            _ => {
+                let mut steering = vec / count as f32;
+                steering = steering - tf.translation;
+                lines.line_colored(tf.translation, tf.translation + steering, 0.0, Color::GREEN);
+            }
+        }
+
+        status.cohesion_system = true;
     }
 }
 
 pub fn debug_separation(
-    query: Query<(Entity, &Transform), With<DebugSeparation>>,
-    mut list: Query<(Entity, &Transform, &mut Sprite), With<Particle>>,
+    query: Query<(Entity, &Transform, &BoidsSeparation, &DebugBoid)>,
+    list: Query<(Entity, &Transform, &Boid)>,
     rules: Res<BoidsRules>,
-    debug_config: Res<DebugConfig>,
+    config: Res<DebugConfig>,
+    mut status: ResMut<DebugSystemsStatus>,
     mut lines: ResMut<DebugLines>,
 ) {
-    if !debug_config.display_separation { return; }
-    let Ok((ent, tf)) = query.get_single()
-        else {
-            println!("No debug particle for separation system");
-            return;
-        };
-    let mut vec = vec3(0.0, 0.0, 0.0);
-    let mut count = 0;
+    if !config.display_separation {
+        status.separation_system = false;
+        return;
+    }
 
-    for (other_ent, other_tf, mut sprite) in &mut list {
-        if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
-
-        let distance = other_tf.translation.distance_squared(tf.translation);
-        if distance <= pow(rules.desired_separation, 2) {
-            let diff = other_tf.translation - tf.translation;
-            let unit_diff = diff / diff.length();
-            let pressure = unit_diff * (rules.desired_separation / diff.length());
-
-            vec = vec - diff;
-            count += 1;
-            lines.line_colored(tf.translation, tf.translation - pressure, 0.0, Color::ORANGE);
+    for (ent, tf, sep, debug) in query.iter() {
+        // Display only for debug_cohesion enabled boids
+        if !debug.show_separation {
+            continue;
         }
+
+        let mut vec = vec3(0.0, 0.0, 0.0);
+        let mut count = 0;
+
+        for (other_ent, other_tf, boid) in &list {
+            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
+
+            let distance = other_tf.translation.distance_squared(tf.translation);
+            if distance <= pow(rules.desired_separation, 2) {
+                let diff = other_tf.translation - tf.translation;
+                let unit_diff = diff / diff.length();
+                let pressure = unit_diff * (rules.desired_separation / diff.length());
+
+                vec = vec - diff;
+                count += 1;
+                lines.line_colored(other_tf.translation, other_tf.translation + pressure, 0.0, Color::ORANGE);
+            }
+        }
+
+        lines.line_colored(tf.translation, tf.translation + sep.force, 0.0, Color::ANTIQUE_WHITE);
+        status.separation_system = true;
+    }
+}
+
+fn debug_alignment(
+    query: Query<(Entity, &Transform, &Movement, &BoidsAlignment, &DebugBoid)>,
+    list: Query<(Entity, &Transform, &Movement, &Boid)>,
+    rules: Res<BoidsRules>,
+    config: Res<DebugConfig>,
+    mut status: ResMut<DebugSystemsStatus>,
+    mut lines: ResMut<DebugLines>,
+) {
+    if !config.display_alignment {
+        status.alignment_system = false;
+        return;
+    }
+
+    for (ent, tf, mov, ali, debug_boid) in query.iter() {
+        // Display only for debug_cohesion enabled boids
+        if !debug_boid.show_alignment {
+            continue;
+        }
+
+        let mut vec = vec3(0.0, 0.0, 0.0);
+        let mut count = 0;
+
+        for (other_ent, other_tf, other_mov, boid) in &list {
+            if ent == other_ent { continue; }
+
+            let distance = other_tf.translation.distance_squared(tf.translation);
+            if distance <= f32::pow(rules.perception_range, 2) {
+                vec += other_mov.vel;
+                count += 1;
+            }
+        }
+        lines.line_colored(tf.translation, tf.translation + ali.force + 4.0, 0.0, Color::INDIGO);
+        status.alignment_system = true;
     }
 }
 
 pub fn mouse_track(
-    mut query: Query<(&mut Transform), With<MouseTracking>>,
+    mut query: Query<(&mut Transform, &DebugBoid)>,
     q_camera: Query<(&Camera, &GlobalTransform)>,
     wnds: Res<Windows>,
     debug: Res<DebugConfig>,
 ) {
-    if !debug.track_mouse { return; }
+    if !debug.track_mouse {
+        return;
+    }
     let (camera, camera_transform) = q_camera.single();
 
     // get the window that the camera is displaying to (or the primary window)
@@ -214,33 +289,47 @@ pub fn mouse_track(
         // reduce it to a 2D value
         let world_pos: Vec2 = world_pos.truncate();
 
-        match query.get_single_mut() {
-            Ok(mut tf) => {
-                tf.translation.x = world_pos.x - 5.0;
-                tf.translation.y = world_pos.y + 5.0;
+        for (mut tf, debug) in query.iter_mut() {
+            if !debug.track_mouse {
+                continue;
             }
-            Err(_) => {}
+            tf.translation.x = world_pos.x - 5.0;
+            tf.translation.y = world_pos.y + 5.0;
         }
     }
 }
 
 pub fn debug_perception_range(
-    query: Query<(Entity, &Transform), With<Dbg>>,
-    mut list: Query<(Entity, &Transform, &mut Sprite), With<Particle>>,
+    query: Query<(Entity, &Transform, &DebugBoid)>,
+    mut list: Query<(Entity, &Transform, &mut Sprite, &Boid), Without<DebugBoid>>,
     config: Res<DebugConfig>,
     rules: Res<BoidsRules>,
 ) {
     if !config.display_perceived { return; }
-    let (ent, tf, ) = query.single();
-
-    for (other_ent, other_tf, mut sprite) in &mut list {
-        if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
-
-        sprite.color = Color::BLUE;
-
-        let distance = other_tf.translation.distance(tf.translation);
-        if distance < rules.perception_range {
-            sprite.color = Color::PURPLE;
+    for (ent, tf, debug) in query.iter() {
+        if !debug.show_perception_range {
+            continue;
         }
+
+        for (other_ent, other_tf, mut sprite, boid) in &mut list {
+            if ent == other_ent { continue; }
+
+            sprite.color = Color::BLUE;
+
+            let distance = other_tf.translation.distance(tf.translation);
+            if distance < rules.perception_range {
+                sprite.color = Color::PURPLE;
+            }
+        }
+    }
+
+
+}
+
+fn color_debug_boid_system(
+    mut query: Query<(&DebugBoid, &mut Sprite)>,
+) {
+    for (debug, mut sprite) in &mut query {
+        sprite.color = debug.color;
     }
 }

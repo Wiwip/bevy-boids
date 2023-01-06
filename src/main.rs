@@ -2,19 +2,19 @@ mod debug_systems;
 mod boids;
 mod helper;
 mod interface;
+mod physics;
 
-use std::ops::{Div, Sub};
-use bevy::math::{vec2, vec3};
+use std::ops::{BitAnd, Div, Sub};
+use bevy::math::vec2;
 use bevy::prelude::*;
 use rand::Rng;
 use bevy_prototype_debug_lines::*;
 use bevy_inspector_egui::{InspectorPlugin, Inspectable};
-use bevy_inspector_egui::WorldInspectorPlugin;
 use std::f32;
 use std::f32::consts::PI;
-use crate::boids::{alignment_system, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, coherence_system, desired_velocity_system, DesiredVelocity, GameRules, move_system, Movement, Particle, separation_system, WorldBound};
-use crate::debug_systems::{BoidsDebugTools, Dbg, DebugSeparation, MouseTracking};
-use crate::helper::velocity_angle;
+use crate::boids::{alignment_system, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, coherence_system, desired_velocity_system, DesiredVelocity, GameRules, move_system, Movement, Boid, separation_system, WorldBoundForce};
+use crate::debug_systems::{BoidsDebugTools, DebugBoid};
+use crate::physics::rotation_system;
 
 fn main() {
     App::new()
@@ -22,7 +22,6 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(DebugLinesPlugin::default())
         .add_plugin(BoidsDebugTools)
-         // .add_plugin(WorldInspectorPlugin::new())
         .add_plugin(InspectorPlugin::<BoidsRules>::new())
 
         .insert_resource(GameRules {
@@ -69,9 +68,96 @@ fn main() {
         .run();
 }
 
-struct SpawnedEvent(Entity);
+///
+/// Setup the world
+///
+fn setup(mut commands: Commands, rules: Res<GameRules>) {
+    let mut rng = rand::thread_rng();
 
-fn add_particles(count: u32) -> Vec<Movement> {
+    commands.spawn(Camera2dBundle::default());
+
+    let vectors = get_random_boids(rules.particle_count);
+    for mov in vectors {
+        let position = vec2(rng.gen_range(rules.left..rules.right), rng.gen_range(rules.bottom..rules.top));
+        let mut sprite_bundle = build_sprite_bundle(position);
+        sprite_bundle.transform.rotation = Quat::from_rotation_z(f32::atan2(mov.vel.y, mov.vel.x));
+
+        commands.spawn((
+            sprite_bundle,
+            Boid,
+            mov,
+            BoidsCoherence::default(),
+            BoidsSeparation::default(),
+            BoidsAlignment::default(),
+            DesiredVelocity::default(),
+            WorldBoundForce::default()
+        ));
+    }
+
+    spawn_debug_particle(&mut commands, vec2(400.0, 0.0),
+                         DebugBoid{
+                             show_separation: true,
+                             color: Color::RED,
+                             ..default()});
+    spawn_debug_particle(&mut commands, vec2(-400.0, 0.0),
+                         DebugBoid {
+                             show_cohesion: true,
+                             color: Color::GREEN,
+                             ..default()});
+    spawn_debug_particle(&mut commands, vec2(0.0, 200.0),
+                         DebugBoid {
+                             show_alignment: true,
+                             color: Color::VIOLET,
+                             ..default()
+                         });
+    spawn_debug_particle(&mut commands, vec2(0.0, 0.0),
+                         DebugBoid {
+                             show_cohesion: true,
+                             show_separation: true,
+                             show_alignment: true,
+                             track_mouse: true,
+                             show_perception_range: true,
+                             color: Color::BLACK,
+                             ..default()
+                         });
+}
+
+fn spawn_debug_particle(
+    commands: &mut Commands,
+    position: Vec2,
+    debug_bundle: impl Bundle,
+) {
+    let sprite = build_sprite_bundle(position);
+
+    commands.spawn((
+        sprite,
+        Boid,
+        debug_bundle,
+        Movement::default(),
+        BoidsCoherence::default(),
+        BoidsSeparation::default(),
+        BoidsAlignment::default(),
+        DesiredVelocity::default(),
+        WorldBoundForce::default()));
+}
+
+fn build_sprite_bundle(
+    location: Vec2,
+) -> SpriteBundle {
+    let mut sprite_bundle = SpriteBundle {
+        sprite: Sprite {
+            custom_size: Some(Vec2::new(6.0, 2.0)),
+            color: Color::BLUE,
+            ..default()
+        },
+        ..default()
+    };
+    sprite_bundle.transform.translation.x = location.x;
+    sprite_bundle.transform.translation.y = location.y;
+    return sprite_bundle;
+}
+
+fn get_random_boids(count: u32) -> Vec<Movement> {
     let mut rng = rand::thread_rng();
     let mut particles: Vec<Movement> = Vec::new();
 
@@ -80,98 +166,22 @@ fn add_particles(count: u32) -> Vec<Movement> {
         let velocity = angle.mul_vec3(Vec3::X) * 150.0;
         let _ = &particles.push(Movement { vel: velocity });
     }
-    println!("--------------->>> {}", particles.len());
+
     particles
 }
 
-///
-/// Setup the world
-///
-fn setup(mut commands: Commands, rules: Res<GameRules>) {
-    let mut rng = rand::thread_rng();
-    let mut dbg = true;
-    let vectors = add_particles(rules.particle_count);
-
-    commands.spawn(Camera2dBundle::default());
-
-    for vel in vectors {
-        let mut bundle = SpriteBundle {
-            sprite: Sprite {
-                color: if dbg { Color::RED } else { Color::BLUE },
-                custom_size: Some(Vec2::new(6.0, 2.0)),
-                ..default()
-            },
-            ..default()
-        };
-        bundle.transform.rotation = Quat::from_rotation_z(f32::atan2(vel.vel.y, vel.vel.x));
-        bundle.transform.translation.x = rng.gen_range(rules.left..rules.right);
-        bundle.transform.translation.y = rng.gen_range(rules.bottom..rules.top);
-
-        let mut ent = commands.spawn((
-            bundle,
-            Particle,
-            vel,
-            BoidsCoherence::default(),
-            BoidsSeparation::default(),
-            BoidsAlignment::default(),
-            DesiredVelocity::default(),
-            WorldBound::default()
-        ));
-
-        if dbg {
-            ent.insert(Dbg);
-            ent.insert(DebugSeparation);
-            ent.insert(MouseTracking);
-            dbg = false;
-        }
-    }
-}
-
-fn spawn_debug_particles(mut commands: Commands) {
-    hand_spawn_particle(&mut commands, vec2(0.0, 0.0), true);
-}
-
-fn hand_spawn_particle(
-    commands: &mut Commands,
-    position: Vec2,
-    debug: bool,
+fn boundaries_system(
+    mut query: Query<(&Transform, &mut WorldBoundForce)>,
+    rules: Res<GameRules>,
+    boids: Res<BoidsRules>
 ) {
-    /*
-    let mut bundle = SpriteBundle {
-        sprite: Sprite {
-            color: if debug { Color::RED } else { Color::BLUE },
-            custom_size: Some(Vec2::new(6.0, 2.0)),
-            ..default()
-        },
-        ..default()
-    };
-    bundle.transform.translation.x = position.x;
-    bundle.transform.translation.y = position.y;
-
-    let mut handle = commands.spawn(Particle);
-    handle.insert((bundle,
-                   BoidsCoherence::default(),
-                   BoidsSeparation::default(),
-                   BoidsAlignment::default(),
-                   DesiredVelocity::default(),
-                   WorldBound::default()));
-
-    if debug {
-        handle.insert(DebugSeparation);
-        handle.insert(MouseTracking);
-    }
-    */
-}
-
-fn boundaries_system(mut query: Query<(&Transform, &mut Movement, &mut WorldBound, Option<&Dbg>)>, rules: Res<GameRules>, boids: Res<BoidsRules>, time: Res<Time>) {
-    for (tf, mut mov, mut bound, dbg) in &mut query {
+    for (tf, mut bound) in &mut query {
         bound.force.x = 0.0;
         if tf.translation.x >= rules.right {
             // Right X bound
             let delta = rules.right - tf.translation.x;
             bound.force.x = delta * boids.stay_inside;
-        }
-        if tf.translation.x <= rules.left {
+        } else if tf.translation.x <= rules.left {
             // Left X bound
             let delta = rules.left - tf.translation.x;
             bound.force.x = delta * boids.stay_inside;
@@ -182,18 +192,11 @@ fn boundaries_system(mut query: Query<(&Transform, &mut Movement, &mut WorldBoun
             // Lower Y bound
             let delta = rules.bottom - tf.translation.y;
             bound.force.y = delta * boids.stay_inside;
-        }
-        if tf.translation.y >= rules.top {
+        } else if tf.translation.y >= rules.top {
             // Top Y bound
             let delta = rules.top - tf.translation.y;
             bound.force.y = delta * boids.stay_inside;
         }
-    }
-}
-
-fn rotation_system(mut query: Query<(&mut Transform, &mut Movement)>, time: Res<Time>) {
-    for (mut tf, mut vel) in &mut query {
-        tf.rotation = Quat::from_rotation_z(velocity_angle(&vel.vel));
     }
 }
 

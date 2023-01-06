@@ -33,7 +33,7 @@ pub struct Movement {
 }
 
 #[derive(Component)]
-pub struct Particle;
+pub struct Boid;
 
 #[derive(Component, Default)]
 pub struct BoidsCoherence {
@@ -56,12 +56,12 @@ pub struct DesiredVelocity {
 }
 
 #[derive(Component, Default)]
-pub struct WorldBound {
+pub struct WorldBoundForce {
     pub force: Vec3,
 }
 
 pub fn move_system(
-    mut query: Query<(&mut Transform, &mut Movement, &BoidsCoherence, &BoidsSeparation, &BoidsAlignment, &WorldBound, &DesiredVelocity)>,
+    mut query: Query<(&mut Transform, &mut Movement, &BoidsCoherence, &BoidsSeparation, &BoidsAlignment, &WorldBoundForce, &DesiredVelocity)>,
     rules: Res<GameRules>,
     boid_rules: Res<BoidsRules>,
     debug: Res<DebugConfig>,
@@ -90,11 +90,11 @@ pub fn move_system(
 }
 
 pub fn coherence_system(
-    mut query: Query<(Entity, &Transform, &mut BoidsCoherence, &Movement), With<Particle>>,
-    list: Query<(Entity, &Transform), With<Particle>>,
+    mut query: Query<(Entity, &Transform, &Movement, &mut BoidsCoherence)>,
+    list: Query<(Entity, &Transform), With<Boid>>,
     res: Res<BoidsRules>,
 ) {
-    for (ent, tf, mut boid, mov) in &mut query {
+    for (ent, tf, mov, mut boid) in &mut query {
         let mut count = 0;
         let mut vec = vec3(0.0, 0.0, 0.0);
 
@@ -123,10 +123,9 @@ pub fn coherence_system(
 }
 
 pub fn separation_system(
-    mut query: Query<(Entity, &Transform, &mut BoidsSeparation), With<Particle>>,
-    list: Query<(Entity, &Transform), With<Particle>>,
+    mut query: Query<(Entity, &Transform, &mut BoidsSeparation)>,
+    list: Query<(Entity, &Transform), With<Boid>>,
     rules: Res<BoidsRules>,
-    mut lines: ResMut<DebugLines>,
 ) {
     for (ent, tf, mut boid) in &mut query {
         let mut vec = vec3(0.0, 0.0, 0.0);
@@ -156,38 +155,38 @@ pub fn separation_system(
 }
 
 pub fn alignment_system(
-    mut query: Query<(Entity, &Transform, &Movement, &mut BoidsAlignment), With<Particle>>,
-    list: Query<(Entity, &Transform, &Movement), With<Particle>>,
+    mut query: Query<(Entity, &Transform, &Movement, &mut BoidsAlignment)>,
+    list: Query<(Entity, &Transform, &Movement), With<Boid>>,
     rules: Res<BoidsRules>,
 ) {
-    for (ent, tf, mov, mut boid) in &mut query {
-        let mut other_vel = vec3(0.0, 0.0, 0.0);
+    for (ent, tf, mov, mut ali) in &mut query {
+        let mut vel = vec3(0.0, 0.0, 0.0);
         let mut count = 0;
 
-        for (tf_ent, other_tf, other_mov) in &list {
-            if ent == tf_ent { continue; } // Don't count current entity as part of the center of flock
+        for (other_ent, other_tf, other_mov) in &list {
+            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
 
             let distance = other_tf.translation.distance_squared(tf.translation);
             if distance <= f32::pow(rules.perception_range, 2) {
-                other_vel += other_mov.vel;
+                vel += other_mov.vel;
                 count += 1;
             }
         }
 
         match count {
             0 => {
-                boid.force = Vec3::ZERO;
+                ali.force = Vec3::ZERO;
             },
             _ => {
-                let mut average_vel = other_vel / count as f32;
-                boid.force = (average_vel - mov.vel) * rules.alignment_factor;
+                let mut average_vel = vel / count as f32;
+                ali.force = (average_vel - mov.vel) * rules.alignment_factor;
             },
         }
     }
 }
 
 pub fn desired_velocity_system(
-    mut query: Query<(&Movement, &mut DesiredVelocity), With<Particle>>,
+    mut query: Query<(&Movement, &mut DesiredVelocity)>,
     rules: Res<BoidsRules>,
 ) {
     for (mov, mut des) in &mut query {
