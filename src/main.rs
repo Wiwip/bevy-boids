@@ -12,7 +12,7 @@ use bevy_prototype_debug_lines::*;
 use bevy_inspector_egui::{InspectorPlugin, Inspectable};
 use std::f32;
 use std::f32::consts::PI;
-use crate::boids::{alignment_system, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, coherence_system, desired_velocity_system, DesiredVelocity, GameRules, move_system, Movement, Boid, separation_system, WorldBoundForce};
+use crate::boids::{BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, Movement, Boid, WorldBoundForce, BoidsSimulation};
 use crate::debug_systems::{BoidsDebugTools, DebugBoid};
 use crate::physics::rotation_system;
 
@@ -22,6 +22,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(DebugLinesPlugin::default())
         .add_plugin(BoidsDebugTools)
+        .add_plugin(BoidsSimulation)
         .add_plugin(InspectorPlugin::<BoidsRules>::new())
 
         .insert_resource(GameRules {
@@ -37,34 +38,13 @@ fn main() {
             coherence_factor: 0.08,
             alignment_factor: 0.125,
             separation_factor: 4.0,
-            stay_inside: 1.0,
+            stay_inside: 2.0,
             desired_speed: 75.0,
             max_force: 8.0,
             velocity_match_factor: 0.05,
         })
-        .add_system(move_system)
-        .add_system(boundaries_system)
+
         .add_system(rotation_system)
-
-        // Boids Systems
-        .add_system(
-            separation_system
-                .before(move_system)
-        )
-        .add_system(
-            alignment_system
-                .before(move_system)
-        )
-        .add_system(
-            coherence_system
-                .before(move_system)
-        )
-        .add_system(
-            desired_velocity_system
-                .before(move_system)
-        )
-
-
         .run();
 }
 
@@ -163,8 +143,8 @@ fn get_random_boids(count: u32) -> Vec<Movement> {
 
     for _ in 0..count {
         let angle = Quat::from_rotation_z(rng.gen_range(0.0..2.0 * PI));
-        let velocity = angle.mul_vec3(Vec3::X) * 150.0;
-        let _ = &particles.push(Movement { vel: velocity });
+        let velocity = angle.mul_vec3(Vec3::X) * 75.0;
+        let _ = &particles.push(Movement { vel: velocity, acc: default() });
     }
 
     particles
@@ -176,7 +156,8 @@ fn boundaries_system(
     boids: Res<BoidsRules>
 ) {
     for (tf, mut bound) in &mut query {
-        bound.force.x = 0.0;
+        bound.force = Vec3::ZERO;
+
         if tf.translation.x >= rules.right {
             // Right X bound
             let delta = rules.right - tf.translation.x;
@@ -187,7 +168,6 @@ fn boundaries_system(
             bound.force.x = delta * boids.stay_inside;
         }
 
-        bound.force.y = 0.0;
         if tf.translation.y <= rules.bottom {
             // Lower Y bound
             let delta = rules.bottom - tf.translation.y;

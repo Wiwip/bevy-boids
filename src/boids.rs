@@ -1,9 +1,40 @@
 use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy_inspector_egui::Inspectable;
-use bevy_prototype_debug_lines::DebugLines;
 use rand_distr::num_traits::{Pow, pow};
-use crate::debug_systems::DebugConfig;
+use crate::boundaries_system;
+use crate::physics::move_system;
+
+
+pub struct BoidsSimulation;
+
+impl Plugin for BoidsSimulation {
+    fn build(&self, app: &mut App) {
+        app.add_stage_after(CoreStage::Update, BoidStage::ForceCalculation, SystemStage::parallel())
+            .add_stage_after(BoidStage::ForceCalculation, BoidStage::ForceIntegration, SystemStage::parallel())
+            .add_stage_after(BoidStage::ForceIntegration, BoidStage::ForceApplication, SystemStage::parallel())
+
+            .add_system_set_to_stage(
+                BoidStage::ForceCalculation,
+                SystemSet::new()
+                    .with_system(separation_system)
+                    .with_system(alignment_system)
+                    .with_system(coherence_system)
+                    .with_system(desired_velocity_system)
+                    .with_system(boundaries_system),
+            )
+            .add_system_set_to_stage(
+                BoidStage::ForceIntegration,
+                SystemSet::new()
+                    .with_system(boid_integrator_system::<BoidsCoherence>)
+                    .with_system(boid_integrator_system::<BoidsAlignment>)
+                    .with_system(boid_integrator_system::<BoidsSeparation>)
+                    .with_system(boid_integrator_system::<WorldBoundForce>)
+                    .with_system(boid_integrator_system::<DesiredVelocity>),
+            )
+            .add_system_to_stage(BoidStage::ForceApplication, move_system);
+    }
+}
 
 #[derive(Resource, Inspectable, Default)]
 pub struct BoidsRules {
@@ -27,9 +58,14 @@ pub struct GameRules {
     pub particle_count: u32,
 }
 
+pub trait BoidForce {
+    fn get_force(&self) -> Vec3;
+}
+
 #[derive(Component, Inspectable, Default)]
 pub struct Movement {
     pub vel: Vec3,
+    pub acc: Vec3,
 }
 
 #[derive(Component)]
@@ -40,9 +76,21 @@ pub struct BoidsCoherence {
     pub force: Vec3,
 }
 
+impl BoidForce for BoidsCoherence {
+    fn get_force(&self) -> Vec3 {
+        return self.force;
+    }
+}
+
 #[derive(Component, Default)]
 pub struct BoidsSeparation {
     pub force: Vec3,
+}
+
+impl BoidForce for BoidsSeparation {
+    fn get_force(&self) -> Vec3 {
+        return self.force;
+    }
 }
 
 #[derive(Component, Default)]
@@ -50,9 +98,21 @@ pub struct BoidsAlignment {
     pub force: Vec3,
 }
 
+impl BoidForce for BoidsAlignment {
+    fn get_force(&self) -> Vec3 {
+        return self.force;
+    }
+}
+
 #[derive(Component, Default)]
 pub struct DesiredVelocity {
     pub force: Vec3,
+}
+
+impl BoidForce for DesiredVelocity {
+    fn get_force(&self) -> Vec3 {
+        return self.force;
+    }
 }
 
 #[derive(Component, Default)]
@@ -60,41 +120,33 @@ pub struct WorldBoundForce {
     pub force: Vec3,
 }
 
-pub fn move_system(
-    mut query: Query<(&mut Transform, &mut Movement, &BoidsCoherence, &BoidsSeparation, &BoidsAlignment, &WorldBoundForce, &DesiredVelocity)>,
-    rules: Res<GameRules>,
-    boid_rules: Res<BoidsRules>,
-    debug: Res<DebugConfig>,
-    time: Res<Time>
+impl BoidForce for WorldBoundForce {
+    fn get_force(&self) -> Vec3 {
+        return self.force;
+    }
+}
+
+#[derive(StageLabel)]
+pub enum BoidStage {
+    ForceCalculation,
+    ForceIntegration,
+    ForceApplication,
+}
+
+pub fn boid_integrator_system<T: Component + BoidForce>(
+    mut query: Query<(&mut Movement, &T)>,
 ) {
-    if debug.freeze_world { return; }
-    for (mut tf, mut mov, coh, sep, ali, bound, des) in &mut query {
-        let steering_force = coh.force + sep.force + ali.force + bound.force + des.force;
-
-        // Clamp max acceleration
-        if steering_force.length() > boid_rules.max_force {
-            steering_force / steering_force.length() * boid_rules.max_force;
-        }
-
-        // Apply acceleration to velocity
-        mov.vel += steering_force * time.delta_seconds();
-
-        // Clamp velocity
-        let max_vel = 125.0;
-        if mov.vel.length() > max_vel {
-            mov.vel = mov.vel / mov.vel.length() * max_vel;
-        }
-
-        tf.translation = tf.translation + mov.vel * time.delta_seconds();
+    for (mut mov, cp) in &mut query {
+        mov.acc += cp.get_force()
     }
 }
 
 pub fn coherence_system(
-    mut query: Query<(Entity, &Transform, &Movement, &mut BoidsCoherence)>,
+    mut query: Query<(Entity, &Transform, &mut BoidsCoherence)>,
     list: Query<(Entity, &Transform), With<Boid>>,
     res: Res<BoidsRules>,
 ) {
-    for (ent, tf, mov, mut boid) in &mut query {
+    for (ent, tf, mut coh) in &mut query {
         let mut count = 0;
         let mut vec = vec3(0.0, 0.0, 0.0);
 
@@ -111,13 +163,13 @@ pub fn coherence_system(
         // Adds the accumulated pressure to movement component
         match count {
             0 => {
-                boid.force = Vec3::ZERO;
-            },
+                coh.force = Vec3::ZERO;
+            }
             _ => {
                 let mut steering = vec / count as f32;
                 steering = steering - tf.translation;
-                boid.force = steering * res.coherence_factor;
-            },
+                coh.force = steering * res.coherence_factor;
+            }
         }
     }
 }
@@ -176,11 +228,11 @@ pub fn alignment_system(
         match count {
             0 => {
                 ali.force = Vec3::ZERO;
-            },
+            }
             _ => {
-                let mut average_vel = vel / count as f32;
+                let average_vel = vel / count as f32;
                 ali.force = (average_vel - mov.vel) * rules.alignment_factor;
-            },
+            }
         }
     }
 }
@@ -193,10 +245,9 @@ pub fn desired_velocity_system(
         let delta_vel = rules.desired_speed - mov.vel.length();
         let unit_vel = mov.vel / mov.vel.length();
 
-        if !unit_vel.is_nan(){
+        if !unit_vel.is_nan() {
             des.force = unit_vel * delta_vel * rules.velocity_match_factor; // Should maybe multiply by some configurable constant
         }
-
     }
 }
 

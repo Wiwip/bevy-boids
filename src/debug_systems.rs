@@ -46,7 +46,7 @@ impl Plugin for BoidsDebugTools {
     fn build(&self, app: &mut App) {
         static DEBUG: &str = "debug";
 
-        app.add_stage_after(CoreStage::Update, DEBUG, SystemStage::single_threaded());
+        app.add_stage_after(CoreStage::PostUpdate, DEBUG, SystemStage::single_threaded());
         app.add_system_to_stage(DEBUG, debug_separation);
         app.add_system_to_stage(DEBUG, debug_cohesion);
         app.add_system_to_stage(DEBUG, debug_alignment);
