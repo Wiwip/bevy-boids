@@ -1,3 +1,4 @@
+use bevy::ecs::system::Command;
 use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
@@ -5,6 +6,7 @@ use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_prototype_debug_lines::DebugLines;
 use rand_distr::num_traits::{pow, Pow};
 use crate::boids::{BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, Movement, Boid, WorldBoundForce, alignment_system};
+use crate::physics::Spatial;
 
 
 #[derive(Component, Default)]
@@ -15,6 +17,7 @@ pub struct DebugBoid {
     pub show_perception_range: bool,
     pub color: Color,
     pub track_mouse: bool,
+    pub spatial_hash: bool,
 }
 
 #[derive(Resource, Inspectable, Default)]
@@ -46,7 +49,7 @@ impl Plugin for BoidsDebugTools {
     fn build(&self, app: &mut App) {
         static DEBUG: &str = "debug";
 
-        app.add_stage_after(CoreStage::PostUpdate, DEBUG, SystemStage::single_threaded());
+        app.add_stage_after(CoreStage::PostUpdate, DEBUG, SystemStage::parallel());
         app.add_system_to_stage(DEBUG, debug_separation);
         app.add_system_to_stage(DEBUG, debug_cohesion);
         app.add_system_to_stage(DEBUG, debug_alignment);
@@ -55,6 +58,8 @@ impl Plugin for BoidsDebugTools {
         app.add_system_to_stage(DEBUG, other_display_debug);
         app.add_system_to_stage(DEBUG, mouse_track);
         app.add_system_to_stage(DEBUG, color_debug_boid_system);
+        app.add_system_to_stage(DEBUG, debug_tag_spatial_hash_system);
+        app.add_system_to_stage(DEBUG, debug_color_spatial_hash_system);
 
         app.add_plugin(InspectorPlugin::<DebugConfig>::new());
         app.insert_resource(DebugConfig {
@@ -331,5 +336,45 @@ fn color_debug_boid_system(
 ) {
     for (debug, mut sprite) in &mut query {
         sprite.color = debug.color;
+    }
+}
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+struct SpatialColorDebug(Color);
+
+fn debug_tag_spatial_hash_system(
+    mut commands: Commands,
+    mut query: Query<(&DebugBoid, &Transform, &mut Sprite)>,
+    boid: Res<BoidsRules>,
+    hash: ResMut<Spatial>,
+    mut lines: ResMut<DebugLines>,
+) {
+    for (debug, tf, mut sprite) in &mut query {
+        if !debug.spatial_hash { continue; }
+
+        sprite.color = debug.color;
+        let map_pos = hash.global_to_map_loc(&tf.translation, boid.perception_range);
+        let values = hash.get_nearby_transforms(&map_pos);
+
+        for (ent, tf, mov) in values {
+            commands.entity(ent).insert(SpatialColorDebug(Color::ORANGE_RED));
+        }
+
+        lines.line_colored(tf.translation, tf.translation + vec3(boid.perception_range, 0.0, 0.0), 0.0, Color::INDIGO);
+    }
+}
+
+fn debug_color_spatial_hash_system(
+    mut commands: Commands,
+    mut query: Query<(Entity, &mut Sprite, Option<&SpatialColorDebug>), With<Boid>>,
+) {
+    for (ent, mut sp, debug) in &mut query {
+        if let Some(dbg) = debug {
+            sp.color = dbg.0;
+            commands.entity(ent).remove::<SpatialColorDebug>();
+        } else {
+            sp.color = Color::BLUE;
+        }
     }
 }

@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use bevy_inspector_egui::Inspectable;
 use rand_distr::num_traits::{Pow, pow};
 use crate::boundaries_system;
-use crate::physics::move_system;
+use crate::physics::{move_system, Spatial};
 
 
 pub struct BoidsSimulation;
@@ -46,7 +46,8 @@ pub struct BoidsRules {
     pub desired_speed: f32,
     pub stay_inside: f32,
     pub max_force: f32,
-    pub(crate) velocity_match_factor: f32,
+    pub velocity_match_factor: f32,
+    pub freeze_world: bool,
 }
 
 #[derive(Resource)]
@@ -62,7 +63,7 @@ pub trait BoidForce {
     fn get_force(&self) -> Vec3;
 }
 
-#[derive(Component, Inspectable, Default)]
+#[derive(Component, Inspectable, Clone, Copy, Default)]
 pub struct Movement {
     pub vel: Vec3,
     pub acc: Vec3,
@@ -143,18 +144,22 @@ pub fn boid_integrator_system<T: Component + BoidForce>(
 
 pub fn coherence_system(
     mut query: Query<(Entity, &Transform, &mut BoidsCoherence)>,
-    list: Query<(Entity, &Transform), With<Boid>>,
-    res: Res<BoidsRules>,
+    rules: Res<BoidsRules>,
+    map: Res<Spatial>,
 ) {
     for (ent, tf, mut coh) in &mut query {
         let mut count = 0;
         let mut vec = vec3(0.0, 0.0, 0.0);
 
-        for (other_ent, other_tf) in &list {
+        // Use data from spatial hash instead of all boids
+        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
+        let local_boid = map.get_nearby_transforms(&map_coord);
+
+        for (other_ent, other_tf, mov) in local_boid {
             if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
 
             let distance = other_tf.translation.distance(tf.translation);
-            if distance < res.perception_range {
+            if distance < rules.perception_range {
                 vec += other_tf.translation;
                 count += 1;
             }
@@ -168,7 +173,7 @@ pub fn coherence_system(
             _ => {
                 let mut steering = vec / count as f32;
                 steering = steering - tf.translation;
-                coh.force = steering * res.coherence_factor;
+                coh.force = steering * rules.coherence_factor;
             }
         }
     }
@@ -176,14 +181,18 @@ pub fn coherence_system(
 
 pub fn separation_system(
     mut query: Query<(Entity, &Transform, &mut BoidsSeparation)>,
-    list: Query<(Entity, &Transform), With<Boid>>,
     rules: Res<BoidsRules>,
+    map: Res<Spatial>,
 ) {
     for (ent, tf, mut boid) in &mut query {
         let mut vec = vec3(0.0, 0.0, 0.0);
         let mut count = 0;
 
-        for (tf_ent, other_tf) in &list {
+        // Use data from spatial hash instead of all boids
+        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
+        let local_boid = map.get_nearby_transforms(&map_coord);
+
+        for (tf_ent, other_tf, mov) in local_boid {
             if ent == tf_ent { continue; } // Don't count current entity as part of the center of flock
 
             let distance = other_tf.translation.distance_squared(tf.translation);
@@ -210,12 +219,17 @@ pub fn alignment_system(
     mut query: Query<(Entity, &Transform, &Movement, &mut BoidsAlignment)>,
     list: Query<(Entity, &Transform, &Movement), With<Boid>>,
     rules: Res<BoidsRules>,
+    map: Res<Spatial>,
 ) {
     for (ent, tf, mov, mut ali) in &mut query {
         let mut vel = vec3(0.0, 0.0, 0.0);
         let mut count = 0;
 
-        for (other_ent, other_tf, other_mov) in &list {
+        // Spatial hash fetch nearby boids
+        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
+        let local_boid = map.get_nearby_transforms(&map_coord);
+
+        for (other_ent, other_tf, other_mov) in local_boid {
             if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
 
             let distance = other_tf.translation.distance_squared(tf.translation);
