@@ -1,38 +1,52 @@
+use crate::boids::BoidStage::ForceApplication;
+use crate::boundaries_system;
 use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy_inspector_egui::Inspectable;
-use rand_distr::num_traits::{Pow, pow};
-use crate::boundaries_system;
-use crate::physics::{move_system, Spatial};
-
+use bevy_prototype_debug_lines::DebugLines;
+use bevy_rapier2d::prelude::{ExternalForce, ExternalImpulse, RapierContext, Sensor, Velocity};
+use rand_distr::num_traits::Pow;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 pub struct BoidsSimulation;
 
 impl Plugin for BoidsSimulation {
     fn build(&self, app: &mut App) {
-        app.add_stage_after(CoreStage::Update, BoidStage::ForceCalculation, SystemStage::parallel())
-            .add_stage_after(BoidStage::ForceCalculation, BoidStage::ForceIntegration, SystemStage::parallel())
-            .add_stage_after(BoidStage::ForceIntegration, BoidStage::ForceApplication, SystemStage::parallel())
-
-            .add_system_set_to_stage(
-                BoidStage::ForceCalculation,
-                SystemSet::new()
-                    .with_system(separation_system)
-                    .with_system(alignment_system)
-                    .with_system(coherence_system)
-                    .with_system(desired_velocity_system)
-                    .with_system(boundaries_system),
-            )
-            .add_system_set_to_stage(
-                BoidStage::ForceIntegration,
-                SystemSet::new()
-                    .with_system(boid_integrator_system::<BoidsCoherence>)
-                    .with_system(boid_integrator_system::<BoidsAlignment>)
-                    .with_system(boid_integrator_system::<BoidsSeparation>)
-                    .with_system(boid_integrator_system::<WorldBoundForce>)
-                    .with_system(boid_integrator_system::<DesiredVelocity>),
-            )
-            .add_system_to_stage(BoidStage::ForceApplication, move_system);
+        app.add_stage_after(
+            CoreStage::Update,
+            BoidStage::ForceCalculation,
+            SystemStage::parallel(),
+        )
+        .add_stage_after(
+            BoidStage::ForceCalculation,
+            BoidStage::ForceIntegration,
+            SystemStage::parallel(),
+        )
+        .add_stage_after(
+            BoidStage::ForceIntegration,
+            ForceApplication,
+            SystemStage::parallel(),
+        )
+        .add_system_set_to_stage(
+            BoidStage::ForceCalculation,
+            SystemSet::new()
+                .with_system(separation_system)
+                .with_system(alignment_system)
+                .with_system(coherence_system)
+                .with_system(desired_velocity_system)
+                .with_system(boundaries_system),
+        )
+        .add_system_set_to_stage(
+            BoidStage::ForceIntegration,
+            SystemSet::new()
+                .with_system(boid_integrator_system::<BoidsCoherence>)
+                .with_system(boid_integrator_system::<BoidsAlignment>)
+                .with_system(boid_integrator_system::<BoidsSeparation>)
+                .with_system(boid_integrator_system::<BoidsBoundaries>)
+                .with_system(boid_integrator_system::<DesiredVelocity>),
+        )
+        .add_system_to_stage(ForceApplication, boid_force_application);
     }
 }
 
@@ -59,18 +73,21 @@ pub struct GameRules {
     pub particle_count: u32,
 }
 
+#[derive(Component, Default)]
+pub struct Boid {
+    force: Vec3,
+}
+
+#[derive(StageLabel)]
+pub enum BoidStage {
+    ForceCalculation,
+    ForceIntegration,
+    ForceApplication,
+}
+
 pub trait BoidForce {
     fn get_force(&self) -> Vec3;
 }
-
-#[derive(Component, Inspectable, Clone, Copy, Default)]
-pub struct Movement {
-    pub vel: Vec3,
-    pub acc: Vec3,
-}
-
-#[derive(Component)]
-pub struct Boid;
 
 #[derive(Component, Default)]
 pub struct BoidsCoherence {
@@ -117,151 +134,178 @@ impl BoidForce for DesiredVelocity {
 }
 
 #[derive(Component, Default)]
-pub struct WorldBoundForce {
+pub struct BoidsBoundaries {
     pub force: Vec3,
 }
 
-impl BoidForce for WorldBoundForce {
+impl BoidForce for BoidsBoundaries {
     fn get_force(&self) -> Vec3 {
         return self.force;
     }
 }
 
-#[derive(StageLabel)]
-pub enum BoidStage {
-    ForceCalculation,
-    ForceIntegration,
-    ForceApplication,
+pub fn boid_integrator_system<T: Component + BoidForce>(
+    mut query: Query<(&mut Boid, &T)>
+) {
+    for (mut steer, cp) in &mut query {
+        steer.force += cp.get_force()
+    }
 }
 
-pub fn boid_integrator_system<T: Component + BoidForce>(
-    mut query: Query<(&mut Movement, &T)>,
+pub fn boid_force_application(
+    mut query: Query<(&mut Boid, &mut ExternalForce)>,
+    rules: Res<BoidsRules>
 ) {
-    for (mut mov, cp) in &mut query {
-        mov.acc += cp.get_force()
+    for (mut boid, mut ext) in &mut query {
+        if boid.force.length() > rules.max_force {
+            ext.force = (boid.force / boid.force.length() * rules.max_force).truncate();
+        } else {
+            ext.force = boid.force.truncate();
+        }
+        boid.force = Vec3::ZERO;
     }
 }
 
 pub fn coherence_system(
-    mut query: Query<(Entity, &Transform, &mut BoidsCoherence)>,
-    rules: Res<BoidsRules>,
-    map: Res<Spatial>,
+    mut boids: Query<(&Transform, &mut BoidsCoherence)>,
+    mut sensors: Query<(Entity, &Sensor, &Parent)>,
+    rapier_context: Res<RapierContext>,
+    boid_config: Res<BoidsRules>,
 ) {
-    for (ent, tf, mut coh) in &mut query {
-        let mut count = 0;
-        let mut vec = vec3(0.0, 0.0, 0.0);
+    for (sensor_ent, _, parent) in sensors.iter() {
+        let aspan = info_span!("A sensor calculations").entered();
+        let center_of_mass = measure_center_of_mass(&boids, sensor_ent, &rapier_context);
 
-        // Use data from spatial hash instead of all boids
-        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let local_boid = map.get_nearby_transforms(&map_coord);
-
-        for (other_ent, other_tf, mov) in local_boid {
-            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
-
-            let distance = other_tf.translation.distance(tf.translation);
-            if distance < rules.perception_range {
-                vec += other_tf.translation;
-                count += 1;
-            }
-        }
-
-        // Adds the accumulated pressure to movement component
-        match count {
-            0 => {
-                coh.force = Vec3::ZERO;
-            }
-            _ => {
-                let mut steering = vec / count as f32;
-                steering = steering - tf.translation;
-                coh.force = steering * rules.coherence_factor;
-            }
+        // Apply vector to sensor parent
+        if let Ok((mtf, mut coh)) = boids.get_mut(parent.get()) {
+                let mut steering = center_of_mass;
+                steering = steering - mtf.translation;
+                coh.force = steering * boid_config.coherence_factor;
         }
     }
 }
 
-pub fn separation_system(
-    mut query: Query<(Entity, &Transform, &mut BoidsSeparation)>,
-    rules: Res<BoidsRules>,
-    map: Res<Spatial>,
-) {
-    for (ent, tf, mut boid) in &mut query {
-        let mut vec = vec3(0.0, 0.0, 0.0);
-        let mut count = 0;
 
-        // Use data from spatial hash instead of all boids
-        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let local_boid = map.get_nearby_transforms(&map_coord);
+fn measure_center_of_mass(
+    boids: &Query<(&Transform, &mut BoidsCoherence)>,
+    sensor_ent: Entity,
+    rapier_context: &Res<RapierContext>
+) -> Vec3 {
+    let mut count = 0;
+    let mut center_of_mass = Vec3::ZERO;
 
-        for (tf_ent, other_tf, mov) in local_boid {
-            if ent == tf_ent { continue; } // Don't count current entity as part of the center of flock
+    let aspan = info_span!("COM Measurements").entered();
 
-            let distance = other_tf.translation.distance_squared(tf.translation);
-            if distance <= pow(rules.desired_separation, 2) {
-                let diff = other_tf.translation - tf.translation;
-                let unit_diff = diff / diff.length();
-                let pressure = unit_diff * (rules.desired_separation / diff.length());
+    // Get the intersecting boids with the sensor
+    for (ent1, ent2, intersecting) in rapier_context.intersections_with(sensor_ent) {
 
-                vec = vec - pressure;
+        let other_ent = if ent1 == sensor_ent { ent2 } else { ent1 };
+
+        if intersecting {
+            if let Ok((other_tf, _)) = boids.get(other_ent) {
+                center_of_mass += other_tf.translation;
                 count += 1;
             }
         }
+    }
+    if count > 0 {
+        return center_of_mass / count as f32;
+    } else {
+        return Vec3::ZERO;
+    }
 
-        if count > 0 {
-            vec = vec / count as f32;
+}
+
+
+pub fn separation_system(
+    mut boids: Query<(&Transform, &Sprite, &mut BoidsSeparation)>,
+    mut sensors: Query<(Entity, &Sensor, &Parent, &GlobalTransform)>,
+    rapier_context: Res<RapierContext>,
+    boid_config: Res<BoidsRules>,
+) {
+    for (sensor_ent, _, parent, gtf) in sensors.iter() {
+        let mut count = 0;
+        let mut vec = Vec3::ZERO;
+
+        // Get the intersecting boids with the sensor
+        for (ent1, ent2, intersecting) in rapier_context.intersections_with(sensor_ent) {
+            let other_ent = if ent1 == sensor_ent { ent2 } else { ent1 };
+
+            if intersecting {
+                if let Ok((other_tf, _, _)) = boids.get(other_ent) {
+                    count += 1;
+                    let diff = other_tf.translation - gtf.translation();
+                    let unit_diff = diff / diff.length();
+                    let pressure = unit_diff * (boid_config.desired_separation / diff.length());
+
+                    vec = vec - pressure;
+                }
+            }
         }
 
-        // Adds the accumulated pressure to movement component
-        boid.force = vec * rules.separation_factor;
+        // Apply vector to sensor parent
+        if let Ok((mtf, _, mut sep)) = boids.get_mut(parent.get()) {
+            match count {
+                0 => sep.force = Vec3::ZERO,
+                _ => {
+                    vec = vec / count as f32;
+                    sep.force = vec * boid_config.separation_factor;
+                }
+            }
+        }
     }
 }
 
 pub fn alignment_system(
-    mut query: Query<(Entity, &Transform, &Movement, &mut BoidsAlignment)>,
-    list: Query<(Entity, &Transform, &Movement), With<Boid>>,
-    rules: Res<BoidsRules>,
-    map: Res<Spatial>,
+    mut boids: Query<(&Transform, &Sprite, &mut BoidsAlignment, &Velocity)>,
+    mut sensors: Query<(Entity, &Sensor, &Parent, &GlobalTransform)>,
+    rapier_context: Res<RapierContext>,
+    boid_config: Res<BoidsRules>,
+    mut lines: ResMut<DebugLines>,
 ) {
-    for (ent, tf, mov, mut ali) in &mut query {
-        let mut vel = vec3(0.0, 0.0, 0.0);
+    for (sensor_ent, _, parent, gtf) in sensors.iter() {
         let mut count = 0;
+        let mut vec = Vec2::ZERO;
 
-        // Spatial hash fetch nearby boids
-        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let local_boid = map.get_nearby_transforms(&map_coord);
+        // Get the intersecting boids with the sensor
+        for (ent1, ent2, intersecting) in rapier_context.intersections_with(sensor_ent) {
+            let aspan = info_span!("PerformIntersectionsAli").entered();
+            let other_ent = if ent1 == sensor_ent { ent2 } else { ent1 };
 
-        for (other_ent, other_tf, other_mov) in local_boid {
-            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
-
-            let distance = other_tf.translation.distance_squared(tf.translation);
-            if distance <= f32::pow(rules.perception_range, 2) {
-                vel += other_mov.vel;
-                count += 1;
+            if intersecting {
+                if let Ok((other_tf, _, _, vel)) = boids.get(other_ent) {
+                    count += 1;
+                    vec = vec + vel.linvel;
+                }
             }
         }
 
-        match count {
-            0 => {
-                ali.force = Vec3::ZERO;
-            }
-            _ => {
-                let average_vel = vel / count as f32;
-                ali.force = (average_vel - mov.vel) * rules.alignment_factor;
+
+        // Apply vector to sensor parent
+        if let Ok((tf, _, mut ali, vel)) = boids.get_mut(parent.get()) {
+            let aspan = info_span!("ApplyVectorAli").entered();
+            match count {
+                0 => ali.force = Vec3::ZERO,
+                _ => {
+                    vec = vec / count as f32; // Averages velocities
+                    vec = vec - vel.linvel; // Computes the velocity difference
+                    ali.force = vec3(vec.x, vec.y, 0.0) * boid_config.alignment_factor;
+                }
             }
         }
     }
 }
 
 pub fn desired_velocity_system(
-    mut query: Query<(&Movement, &mut DesiredVelocity)>,
-    rules: Res<BoidsRules>,
-) {
-    for (mov, mut des) in &mut query {
-        let delta_vel = rules.desired_speed - mov.vel.length();
-        let unit_vel = mov.vel / mov.vel.length();
+    mut query: Query<(&Velocity, &mut DesiredVelocity)>,
+    rules: Res<BoidsRules>) {
+
+    for (vel, mut des) in &mut query {
+        let delta_vel = rules.desired_speed - vel.linvel.length();
+        let unit_vel = vel.linvel / vel.linvel.length();
 
         if !unit_vel.is_nan() {
-            des.force = unit_vel * delta_vel * rules.velocity_match_factor; // Should maybe multiply by some configurable constant
+            des.force = vec3(unit_vel.x, unit_vel.y, 0.0) * delta_vel * rules.velocity_match_factor; // Should maybe multiply by some configurable constant
         }
     }
 }
-
