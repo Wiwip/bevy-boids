@@ -1,8 +1,8 @@
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [package]
-name = "simple_boid_simulation"
-version = "0.2.0"
+name = "flock_sim"
+version = "0.3.0"
 edition = "2021"
 
 [dependencies]
@@ -22,3 +22,8 @@ opt-level = 1
 # Enable high optimizations for dependencies (incl. Bevy), but not for our code:
 [profile.dev.package."*"]
 opt-level = 3
+
+[[bench]]
+name = "boids"
+path = "benches/mod.rs"
+harness = false

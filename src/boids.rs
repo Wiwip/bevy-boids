@@ -2,9 +2,7 @@ use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy_inspector_egui::Inspectable;
 use rand_distr::num_traits::{Pow, pow};
-use crate::boundaries_system;
 use crate::physics::{move_system, Spatial};
-
 
 pub struct BoidsSimulation;
 
@@ -261,6 +259,37 @@ pub fn desired_velocity_system(
 
         if !unit_vel.is_nan() {
             des.force = unit_vel * delta_vel * rules.velocity_match_factor; // Should maybe multiply by some configurable constant
+        }
+    }
+}
+
+
+pub fn boundaries_system(
+    mut query: Query<(&Transform, &mut WorldBoundForce)>,
+    rules: Res<GameRules>,
+    boids: Res<BoidsRules>
+) {
+    for (tf, mut bound) in &mut query {
+        bound.force = Vec3::ZERO;
+
+        if tf.translation.x >= rules.right {
+            // Right X bound
+            let delta = rules.right - tf.translation.x;
+            bound.force.x = delta * boids.stay_inside;
+        } else if tf.translation.x <= rules.left {
+            // Left X bound
+            let delta = rules.left - tf.translation.x;
+            bound.force.x = delta * boids.stay_inside;
+        }
+
+        if tf.translation.y <= rules.bottom {
+            // Lower Y bound
+            let delta = rules.bottom - tf.translation.y;
+            bound.force.y = delta * boids.stay_inside;
+        } else if tf.translation.y >= rules.top {
+            // Top Y bound
+            let delta = rules.top - tf.translation.y;
+            bound.force.y = delta * boids.stay_inside;
         }
     }
 }

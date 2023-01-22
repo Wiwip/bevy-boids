@@ -1,12 +1,11 @@
-use bevy::ecs::system::Command;
 use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_prototype_debug_lines::DebugLines;
 use rand_distr::num_traits::{pow, Pow};
-use crate::boids::{BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, Movement, Boid, WorldBoundForce, alignment_system};
-use crate::physics::Spatial;
+use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, Movement, WorldBoundForce};
+use flock_sim::physics::Spatial;
 
 
 #[derive(Component, Default)]

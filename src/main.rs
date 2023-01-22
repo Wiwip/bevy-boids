@@ -1,30 +1,28 @@
 extern crate bevy;
 
-mod debug_systems;
-mod boids;
-mod helper;
-mod interface;
-mod physics;
-
-use std::ops::{BitAnd, Div, Sub};
-use bevy::math::{ivec3, vec2, vec3};
-use bevy::prelude::*;
-use rand::Rng;
-use bevy_prototype_debug_lines::*;
-use bevy_inspector_egui::{InspectorPlugin, Inspectable};
 use std::f32;
 use std::f32::consts::PI;
+use std::ops::{BitAnd, Div, Sub};
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
-use crate::boids::{BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, Movement, Boid, WorldBoundForce, BoidsSimulation};
+use bevy::math::{ivec3, vec2};
+use bevy::prelude::*;
+use bevy_inspector_egui::{Inspectable, InspectorPlugin};
+use bevy_prototype_debug_lines::*;
+use rand::Rng;
+use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, BoidsSimulation, DesiredVelocity, GameRules, Movement, WorldBoundForce};
+use flock_sim::physics::{rotation_system, Spatial, spatial_hash_system};
+
 use crate::debug_systems::{BoidsDebugTools, DebugBoid};
-use crate::physics::{rotation_system, Spatial, spatial_hash_system};
+
+mod debug_systems;
+
 
 fn main() {
     App::new()
         .add_startup_system(setup)
         .add_plugins(DefaultPlugins)
         .add_plugin(DebugLinesPlugin::default())
-        //.add_plugin(BoidsDebugTools)
+        .add_plugin(BoidsDebugTools)
         .add_plugin(BoidsSimulation)
         .add_plugin(InspectorPlugin::<BoidsRules>::new())
 
@@ -33,21 +31,21 @@ fn main() {
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
 
         .insert_resource(GameRules {
-            left: -1400.0 / 2.0,
-            right: 1400.0 / 2.0,
-            top: 600.0 / 2.0,
-            bottom: -600.0 / 2.0,
-            particle_count: 2000,
+            left: -1600.0 / 2.0,
+            right: 1600.0 / 2.0,
+            top: 800.0 / 2.0,
+            bottom: -800.0 / 2.0,
+            particle_count: 4000,
         })
         .insert_resource(BoidsRules {
-            perception_range: 100.0,
+            perception_range: 64.0,
             desired_separation: 64.0,
-            coherence_factor: 0.08,
-            alignment_factor: 0.125,
-            separation_factor: 4.0,
-            stay_inside: 2.0,
-            desired_speed: 75.0,
-            max_force: 8.0,
+            coherence_factor: 0.12,
+            alignment_factor: 0.30,
+            separation_factor: 12.0,
+            stay_inside: 4.0,
+            desired_speed: 175.0,
+            max_force: 12.0,
             velocity_match_factor: 0.05,
             freeze_world: false,
         })
@@ -167,34 +165,3 @@ fn get_random_boids(count: u32) -> Vec<Movement> {
 
     particles
 }
-
-fn boundaries_system(
-    mut query: Query<(&Transform, &mut WorldBoundForce)>,
-    rules: Res<GameRules>,
-    boids: Res<BoidsRules>
-) {
-    for (tf, mut bound) in &mut query {
-        bound.force = Vec3::ZERO;
-
-        if tf.translation.x >= rules.right {
-            // Right X bound
-            let delta = rules.right - tf.translation.x;
-            bound.force.x = delta * boids.stay_inside;
-        } else if tf.translation.x <= rules.left {
-            // Left X bound
-            let delta = rules.left - tf.translation.x;
-            bound.force.x = delta * boids.stay_inside;
-        }
-
-        if tf.translation.y <= rules.bottom {
-            // Lower Y bound
-            let delta = rules.bottom - tf.translation.y;
-            bound.force.y = delta * boids.stay_inside;
-        } else if tf.translation.y >= rules.top {
-            // Top Y bound
-            let delta = rules.top - tf.translation.y;
-            bound.force.y = delta * boids.stay_inside;
-        }
-    }
-}
-

@@ -1,11 +1,11 @@
 use bevy::math::ivec3;
 use bevy::prelude::*;
 use bevy::utils::HashMap;
-
 use crate::boids::{Boid, BoidsRules, Movement};
-use crate::helper::velocity_angle;
+use crate::velocity_angle;
 
-#[derive(Resource)]
+
+#[derive(Resource, Default)]
 pub struct Spatial {
     pub map: HashMap<IVec3, Vec<(Entity, Transform, Movement)>>,
     pub list_offsets: Vec<IVec3>,
