@@ -35,17 +35,18 @@ fn main() {
             right: 1600.0 / 2.0,
             top: 800.0 / 2.0,
             bottom: -800.0 / 2.0,
-            particle_count: 4000,
+            particle_count: 2000,
         })
         .insert_resource(BoidsRules {
-            perception_range: 64.0,
-            desired_separation: 64.0,
-            coherence_factor: 0.12,
-            alignment_factor: 0.30,
-            separation_factor: 12.0,
-            stay_inside: 4.0,
+            perception_range: 20.0,
+            desired_separation: 20.0,
+            coherence_factor: 0.01,
+            alignment_factor: 0.125,
+            separation_factor: 0.12,
+            stay_inside: 0.25,
             desired_speed: 175.0,
             max_force: 12.0,
+            max_velocity: 225.0,
             velocity_match_factor: 0.05,
             freeze_world: false,
         })
@@ -56,6 +57,7 @@ fn main() {
                 ivec3(-1,0,0),ivec3(0,0,0),ivec3(1,0,0),
                 ivec3(-1,-1,0),ivec3(0,-1,0),ivec3(1,-1,0)
             ],
+            ..default()
         })
 
         .add_system(rotation_system)

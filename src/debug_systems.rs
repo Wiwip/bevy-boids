@@ -4,7 +4,7 @@ use bevy::render::camera::RenderTarget;
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_prototype_debug_lines::DebugLines;
 use rand_distr::num_traits::{pow, Pow};
-use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, Movement, WorldBoundForce};
+use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, measure_coherence, measure_separation, Movement, WorldBoundForce};
 use flock_sim::physics::Spatial;
 
 
@@ -73,7 +73,7 @@ impl Plugin for BoidsDebugTools {
         });
 
         app.add_plugin(InspectorPlugin::<DebugSystemsStatus>::new());
-        app.insert_resource(DebugSystemsStatus::default());
+        //app.insert_resource(DebugSystemsStatus::default());
     }
 }
 
@@ -137,11 +137,12 @@ pub fn debug_world_bounds(
 
 pub fn debug_cohesion(
     query: Query<(Entity, &Transform, &BoidsCoherence, &DebugBoid)>,
-    list: Query<(Entity, &Transform, &Boid)>,
+    boids: Query<(&Transform)>,
     rules: Res<BoidsRules>,
     config: Res<DebugConfig>,
     mut status: ResMut<DebugSystemsStatus>,
     mut lines: ResMut<DebugLines>,
+    map: Res<Spatial>,
 ) {
     if !config.display_cohesion {
         status.cohesion_system = false;
@@ -154,28 +155,12 @@ pub fn debug_cohesion(
             continue;
         }
 
-        let mut vec = vec3(0.0, 0.0, 0.0);
-        let mut count = 0;
+        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
+        let neighbours = map.get_nearby_ent(&map_coord);
 
+        let val = measure_coherence(ent, &boids, neighbours, rules.perception_range);
 
-        for (other_ent, other_tf, boid) in &list {
-            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
-
-            let distance = other_tf.translation.distance(tf.translation);
-            if distance < rules.perception_range {
-                vec += other_tf.translation;
-                count += 1;
-            }
-        }
-
-        match count {
-            0 => {} // No to division by zero.
-            _ => {
-                let mut steering = vec / count as f32;
-                steering = steering - tf.translation;
-                lines.line_colored(tf.translation, tf.translation + steering, 0.0, Color::GREEN);
-            }
-        }
+        lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::GREEN);
 
         status.cohesion_system = true;
     }
@@ -183,42 +168,27 @@ pub fn debug_cohesion(
 
 pub fn debug_separation(
     query: Query<(Entity, &Transform, &BoidsSeparation, &DebugBoid)>,
-    list: Query<(Entity, &Transform, &Boid)>,
+    boids: Query<(&Transform)>,
     rules: Res<BoidsRules>,
     config: Res<DebugConfig>,
     mut status: ResMut<DebugSystemsStatus>,
     mut lines: ResMut<DebugLines>,
+    map: Res<Spatial>,
 ) {
     if !config.display_separation {
         status.separation_system = false;
         return;
     }
 
-    for (ent, tf, sep, debug) in query.iter() {
+    for (ent, tf, _, _) in &query {
         // Display only for debug_cohesion enabled boids
-        if !debug.show_separation {
-            continue;
-        }
 
-        let mut vec = vec3(0.0, 0.0, 0.0);
-        let mut count = 0;
+        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
+        let neighbours = map.get_nearby_ent(&map_coord);
 
-        for (other_ent, other_tf, boid) in &list {
-            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
+        let val = measure_separation(ent, &boids, neighbours, rules.perception_range);
 
-            let distance = other_tf.translation.distance_squared(tf.translation);
-            if distance <= pow(rules.desired_separation, 2) {
-                let diff = other_tf.translation - tf.translation;
-                let unit_diff = diff / diff.length();
-                let pressure = unit_diff * (rules.desired_separation / diff.length());
-
-                vec = vec - diff;
-                count += 1;
-                lines.line_colored(other_tf.translation, other_tf.translation + pressure, 0.0, Color::ORANGE);
-            }
-        }
-
-        lines.line_colored(tf.translation, tf.translation + sep.force, 0.0, Color::ANTIQUE_WHITE);
+        lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::ANTIQUE_WHITE);
         status.separation_system = true;
     }
 }
@@ -354,9 +324,9 @@ fn debug_tag_spatial_hash_system(
 
         sprite.color = debug.color;
         let map_pos = hash.global_to_map_loc(&tf.translation, boid.perception_range);
-        let values = hash.get_nearby_transforms(&map_pos);
+        let values = hash.get_nearby_ent(&map_pos);
 
-        for (ent, tf, mov) in values {
+        for ent in values {
             commands.entity(ent).insert(SpatialColorDebug(Color::ORANGE_RED));
         }
 

@@ -1,7 +1,9 @@
-use bevy::math::vec3;
 use bevy::prelude::*;
+use bevy::reflect::Array;
+use std::vec::Vec;
 use bevy_inspector_egui::Inspectable;
 use rand_distr::num_traits::{Pow, pow};
+
 use crate::physics::{move_system, Spatial};
 
 pub struct BoidsSimulation;
@@ -44,6 +46,7 @@ pub struct BoidsRules {
     pub desired_speed: f32,
     pub stay_inside: f32,
     pub max_force: f32,
+    pub max_velocity: f32,
     pub velocity_match_factor: f32,
     pub freeze_world: bool,
 }
@@ -61,7 +64,7 @@ pub trait BoidForce {
     fn get_force(&self) -> Vec3;
 }
 
-#[derive(Component, Inspectable, Clone, Copy, Default)]
+#[derive(Component, Inspectable, Copy, Clone, Default)]
 pub struct Movement {
     pub vel: Vec3,
     pub acc: Vec3,
@@ -136,116 +139,156 @@ pub fn boid_integrator_system<T: Component + BoidForce>(
     mut query: Query<(&mut Movement, &T)>,
 ) {
     for (mut mov, cp) in &mut query {
-        mov.acc += cp.get_force()
+        mov.vel += cp.get_force()
     }
 }
 
 pub fn coherence_system(
     mut query: Query<(Entity, &Transform, &mut BoidsCoherence)>,
+    boids: Query<(&Transform)>,
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
 ) {
     for (ent, tf, mut coh) in &mut query {
-        let mut count = 0;
-        let mut vec = vec3(0.0, 0.0, 0.0);
 
-        // Use data from spatial hash instead of all boids
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let local_boid = map.get_nearby_transforms(&map_coord);
+        let neighbours = map.get_nearby_ent(&map_coord);
 
-        for (other_ent, other_tf, mov) in local_boid {
-            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
+        coh.force  = measure_coherence(ent, &boids, neighbours, rules.perception_range) * rules.coherence_factor;
+    }
+}
 
-            let distance = other_tf.translation.distance(tf.translation);
-            if distance < rules.perception_range {
-                vec += other_tf.translation;
-                count += 1;
-            }
-        }
+pub fn measure_coherence(
+    entity: Entity,
+    query: &Query<(&Transform)>,
+    neighbours: Vec<Entity>,
+    perception: f32,
+) -> Vec3 {
+    let perception_squared = f32::pow(perception, 2);
+    let local_tf = query.get(entity).unwrap();
+    let mut count = 0;
 
-        // Adds the accumulated pressure to movement component
-        match count {
-            0 => {
-                coh.force = Vec3::ZERO;
-            }
-            _ => {
-                let mut steering = vec / count as f32;
-                steering = steering - tf.translation;
-                coh.force = steering * rules.coherence_factor;
-            }
-        }
+    let steer: Vec3 = neighbours
+        .into_iter()
+
+        // Exclude current boid
+        .filter(|v| v != &entity)
+
+        // Get all transforms
+        .map(|v| query.get(v).unwrap().translation )
+
+        // Exclude boid outside perception range
+        .filter(|v| v.distance_squared(local_tf.translation) <= perception_squared)
+
+        // Count leftovers
+        .map(|v| {
+            count += 1;
+            return v;
+        })
+        .sum();
+
+    return if count == 0 {
+        Vec3::ZERO
+    } else {
+        (steer / count as f32) - local_tf.translation
     }
 }
 
 pub fn separation_system(
     mut query: Query<(Entity, &Transform, &mut BoidsSeparation)>,
+    boids: Query<(&Transform)>,
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
 ) {
-    for (ent, tf, mut boid) in &mut query {
-        let mut vec = vec3(0.0, 0.0, 0.0);
-        let mut count = 0;
+    for (ent, tf, mut sep) in &mut query {
 
         // Use data from spatial hash instead of all boids
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let local_boid = map.get_nearby_transforms(&map_coord);
+        let neighbours = map.get_nearby_ent(&map_coord);
 
-        for (tf_ent, other_tf, mov) in local_boid {
-            if ent == tf_ent { continue; } // Don't count current entity as part of the center of flock
-
-            let distance = other_tf.translation.distance_squared(tf.translation);
-            if distance <= pow(rules.desired_separation, 2) {
-                let diff = other_tf.translation - tf.translation;
-                let unit_diff = diff / diff.length();
-                let pressure = unit_diff * (rules.desired_separation / diff.length());
-
-                vec = vec - pressure;
-                count += 1;
-            }
-        }
-
-        if count > 0 {
-            vec = vec / count as f32;
-        }
-
-        // Adds the accumulated pressure to movement component
-        boid.force = vec * rules.separation_factor;
+        sep.force = measure_separation(ent, &boids, neighbours, rules.perception_range) * rules.separation_factor;
     }
+}
+
+pub fn measure_separation(
+    entity: Entity,
+    query: &Query<(&Transform)>,
+    neighbours: Vec<Entity>,
+    perception: f32,
+) -> Vec3 {
+    let mut count = 0;
+    let perception_squared = pow(perception, 2);
+    let local_tf = query.get(entity).unwrap().translation;
+
+    let result = neighbours
+        .into_iter()
+
+        // Exclude our current boid
+        .filter(|e| entity != *e )
+
+        // Get all translations
+        .map(|e| query.get(e).unwrap().translation)
+
+        // Filter boids that are too far
+        .filter(|v| v.distance_squared(local_tf) <= perception_squared)
+
+        .map(|v| {
+            count += 1;
+            -1.0 * (v - local_tf)
+        })
+        .map(|v| v / v.length() * (perception / v.length()))
+
+        .sum();
+
+    return result;
 }
 
 pub fn alignment_system(
     mut query: Query<(Entity, &Transform, &Movement, &mut BoidsAlignment)>,
-    list: Query<(Entity, &Transform, &Movement), With<Boid>>,
+    boids: Query<(&Transform, &Movement)>,
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
 ) {
     for (ent, tf, mov, mut ali) in &mut query {
-        let mut vel = vec3(0.0, 0.0, 0.0);
-        let mut count = 0;
-
-        // Spatial hash fetch nearby boids
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let local_boid = map.get_nearby_transforms(&map_coord);
+        let neighbours = map.get_nearby_ent(&map_coord);
 
-        for (other_ent, other_tf, other_mov) in local_boid {
-            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
+        ali.force = measure_alignment(ent, &boids, neighbours, rules.perception_range) * rules.alignment_factor;
+    }
 
-            let distance = other_tf.translation.distance_squared(tf.translation);
-            if distance <= f32::pow(rules.perception_range, 2) {
-                vel += other_mov.vel;
-                count += 1;
-            }
-        }
+}
 
-        match count {
-            0 => {
-                ali.force = Vec3::ZERO;
-            }
-            _ => {
-                let average_vel = vel / count as f32;
-                ali.force = (average_vel - mov.vel) * rules.alignment_factor;
-            }
-        }
+pub fn measure_alignment(
+    entity: Entity,
+    query: &Query<(&Transform, &Movement)>,
+    neighbours: Vec<Entity>,
+    perception: f32,
+) -> Vec3 {
+    let mut count = 0;
+    let local_tf = query.get(entity).unwrap().0.translation;
+    let local_mov = query.get(entity).unwrap().1;
+    let perception_squared = pow(perception, 2);
+
+    let steer: Vec3 = neighbours
+        .into_iter()
+        .filter(|e| entity != *e)
+
+        // Get transforms and movement components
+        .map(|e| query.get(e).unwrap())
+
+        // Excludes boids that are too far
+        .filter(|(&tf, &mv)| tf.translation.distance_squared(local_tf) <= perception_squared)
+
+        .map(|(&tf, &mv)| {
+            count += 1;
+            return mv.vel;
+        })
+        .sum();
+
+    return if count == 0 {
+        Vec3::ZERO
+    } else {
+        (steer / count as f32) - local_mov.vel
     }
 }
 
@@ -258,7 +301,7 @@ pub fn desired_velocity_system(
         let unit_vel = mov.vel / mov.vel.length();
 
         if !unit_vel.is_nan() {
-            des.force = unit_vel * delta_vel * rules.velocity_match_factor; // Should maybe multiply by some configurable constant
+            des.force = unit_vel * delta_vel * rules.velocity_match_factor;
         }
     }
 }
@@ -267,7 +310,7 @@ pub fn desired_velocity_system(
 pub fn boundaries_system(
     mut query: Query<(&Transform, &mut WorldBoundForce)>,
     rules: Res<GameRules>,
-    boids: Res<BoidsRules>
+    boids: Res<BoidsRules>,
 ) {
     for (tf, mut bound) in &mut query {
         bound.force = Vec3::ZERO;

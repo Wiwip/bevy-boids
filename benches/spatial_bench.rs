@@ -10,6 +10,8 @@ pub struct Benchmark {
     hash: Box<dyn System<In=(), Out=()>>,
     brute_system: Box<dyn System<In=(), Out=()>>,
     spatial_query_coherence: Box<dyn System<In=(), Out=()>>,
+    foreach: Box<dyn System<In=(), Out=()>>,
+    combinator: Box<dyn System<In=(), Out=()>>,
 }
 
 
@@ -51,11 +53,21 @@ impl Benchmark {
         brute.initialize(&mut world);
         brute.update_archetype_component_access(&world);
 
+        let mut foreach = IntoSystem::into_system(foreach_iterator);
+        foreach.initialize(&mut world);
+        foreach.update_archetype_component_access(&world);
+
+        let mut comb = IntoSystem::into_system(brute_coherence);
+        comb.initialize(&mut world);
+        comb.update_archetype_component_access(&world);
+
         Self{
             world,
             hash: Box::new((system)),
             brute_system: Box::new((brute)),
             spatial_query_coherence: Box::new((smart)),
+            foreach: Box::new((foreach)),
+            combinator: Box::new((comb)),
         }
     }
 
@@ -75,6 +87,14 @@ impl Benchmark {
     pub fn run_brute(&mut self) {
         self.brute_system.run((), &mut self.world);
     }
+
+    pub fn run_foreach_iterator(&mut self) {
+        self.brute_system.run((), &mut self.world);
+    }
+
+    pub fn run_combinator(&mut self) {
+        self.brute_system.run((), &mut self.world);
+    }
 }
 
 
@@ -83,15 +103,16 @@ pub fn spatial_coherence(
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
 ) {
+    /*
     for (ent, tf, mut coh) in &mut query {
         let mut count = 0;
         let mut vec = vec3(0.0, 0.0, 0.0);
 
         // Use data from spatial hash instead of all boids
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let local_boid = map.get_nearby_transforms(&map_coord);
+        let local_boid = map.get_nearby_ent(&map_coord);
 
-        for (other_ent, other_tf, mov) in local_boid {
+        for (other_ent, other_tf) in local_boid {
             if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
 
             let distance = other_tf.translation.distance(tf.translation);
@@ -112,7 +133,7 @@ pub fn spatial_coherence(
                 coh.force = steering * rules.coherence_factor;
             }
         }
-    }
+    }*/
 }
 
 pub fn brute_coherence(
@@ -145,5 +166,25 @@ pub fn brute_coherence(
                 coh.force = steering * rules.coherence_factor;
             }
         }
+    }
+}
+
+
+pub fn foreach_iterator(
+    mut query: Query<(Entity)>,
+) {
+    let mut count = 0;
+    for ent in &mut query {
+        count += 1;
+    }
+}
+
+pub fn combinator_iterator(
+    mut query: Query<(Entity)>,
+) {
+    let mut count = 0;
+    let mut combinator = query.iter_combinations_mut();
+    for [ent1, ent2] in &mut combinator.fetch_next() {
+        count += 1;
     }
 }

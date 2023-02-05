@@ -1,5 +1,6 @@
 use bevy::math::ivec3;
 use bevy::prelude::*;
+use bevy::utils::hashbrown::hash_map::Entry;
 use bevy::utils::HashMap;
 use crate::boids::{Boid, BoidsRules, Movement};
 use crate::velocity_angle;
@@ -7,8 +8,9 @@ use crate::velocity_angle;
 
 #[derive(Resource, Default)]
 pub struct Spatial {
-    pub map: HashMap<IVec3, Vec<(Entity, Transform, Movement)>>,
+    pub map: HashMap<IVec3, Vec<Entity>>,
     pub list_offsets: Vec<IVec3>,
+    pub cell_size: f32,
 }
 
 impl Spatial {
@@ -21,8 +23,16 @@ impl Spatial {
         return tpl;
     }
 
-    pub fn get_nearby_transforms(&self, origin: &IVec3) -> Vec<(Entity, Transform, Movement)> {
-        let mut list: Vec<(Entity, Transform, Movement)> = default();
+
+    /// Get a list of Entity that are considered nearby by the spatial hashing algorithm
+    ///
+    /// # Arguments
+    ///
+    /// * `origin`: The coordinate of the location where to start looking from
+    ///
+    /// returns: Vec<Entity>
+    pub fn get_nearby_ent(&self, origin: &IVec3) -> Vec<Entity> {
+        let mut list: Vec<Entity> = default();
 
         for offset in &self.list_offsets {
             let key = *origin + *offset;
@@ -42,11 +52,12 @@ pub fn rotation_system(mut query: Query<(&mut Transform, &Movement)>) {
 }
 
 pub fn move_system(
-    mut query: Query<(&mut Transform, &mut Movement)>,
+    mut query: Query<(&mut Transform, &mut Movement)>, // TODO split velocity and acceleration components
     boid_rules: Res<BoidsRules>,
     time: Res<Time>,
 ) {
     if boid_rules.freeze_world { return; }
+
     for (mut tf, mut mov) in &mut query {
         let mut acc = mov.acc;
         // Clamp max acceleration
@@ -58,32 +69,35 @@ pub fn move_system(
         mov.vel = mov.vel + acc * time.delta_seconds();
 
         // Clamp velocity
-        let max_vel = 125.0; // TODO move max vel
+        let max_vel = boid_rules.max_velocity; // TODO move max vel
         if mov.vel.length() > max_vel {
             mov.vel = mov.vel / mov.vel.length() * max_vel;
         }
 
         tf.translation = tf.translation + mov.vel * time.delta_seconds();
-        mov.acc = Vec3::ZERO;
+        //mov.acc = Vec3::ZERO;
     }
 }
 
 pub fn spatial_hash_system(
-    query: Query<(Entity, &Transform, &Movement), With<Boid>>,
-    boid: Res<BoidsRules>,
+    query: Query<(Entity, &Transform), With<Boid>>,
+    rules: Res<BoidsRules>,
     mut hash: ResMut<Spatial>,
 ) {
     hash.map.clear();
-    for (ent, tf, mov) in query.iter() {
-        let local = hash.global_to_map_loc(&tf.translation, boid.perception_range);
+    hash.cell_size = rules.perception_range;
 
-        match hash.map.get_mut(&local) {
-            None => {
-                hash.map.insert(local, vec![((ent, *tf, *mov))]);
+    for (ent, tf) in query.iter() {
+        let local = hash.global_to_map_loc(&tf.translation, rules.perception_range);
+
+        // Add entity to selected map cell
+        match hash.map.entry(local) {
+            Entry::Occupied(mut o) => {
+                o.get_mut().push(ent);
             }
-            Some(curr_vec) => {
-                curr_vec.push((ent, *tf, *mov));
+            Entry::Vacant(v) => {
+                v.insert(vec![(ent)]);
             }
-        }
+        };
     }
 }
