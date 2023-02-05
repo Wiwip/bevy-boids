@@ -35,19 +35,20 @@ fn main() {
             right: 1600.0 / 2.0,
             top: 800.0 / 2.0,
             bottom: -800.0 / 2.0,
+            range: 800.0,
             particle_count: 2000,
         })
         .insert_resource(BoidsRules {
-            perception_range: 20.0,
-            desired_separation: 20.0,
-            coherence_factor: 0.01,
-            alignment_factor: 0.125,
-            separation_factor: 0.12,
-            stay_inside: 0.25,
+            perception_range: 32.0,
+            desired_separation: 8.0,
+            coherence_factor: 0.001,
+            alignment_factor: 0.0125,
+            separation_factor: 0.012,
+            stay_inside: 12.00,
             desired_speed: 175.0,
-            max_force: 12.0,
+            max_force: 4.0,
             max_velocity: 225.0,
-            velocity_match_factor: 0.05,
+            velocity_match_factor: 0.0,
             freeze_world: false,
         })
         .insert_resource(Spatial{

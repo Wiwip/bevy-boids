@@ -57,6 +57,7 @@ pub struct GameRules {
     pub right: f32,
     pub top: f32,
     pub bottom: f32,
+    pub range: f32,
     pub particle_count: u32,
 }
 
@@ -137,7 +138,9 @@ pub enum BoidStage {
 
 pub fn boid_integrator_system<T: Component + BoidForce>(
     mut query: Query<(&mut Movement, &T)>,
+    rules: Res<BoidsRules>,
 ) {
+    if rules.freeze_world { return;}
     for (mut mov, cp) in &mut query {
         mov.vel += cp.get_force()
     }
@@ -145,34 +148,35 @@ pub fn boid_integrator_system<T: Component + BoidForce>(
 
 pub fn coherence_system(
     mut query: Query<(Entity, &Transform, &mut BoidsCoherence)>,
-    boids: Query<(&Transform)>,
+    boids: Query<&Transform>,
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
 ) {
+    if rules.freeze_world { return;}
     for (ent, tf, mut coh) in &mut query {
 
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        coh.force  = measure_coherence(ent, &boids, neighbours, rules.perception_range) * rules.coherence_factor;
+        coh.force += measure_coherence(ent, &boids, neighbours, rules.perception_range) * rules.coherence_factor;
     }
 }
 
 pub fn measure_coherence(
     entity: Entity,
-    query: &Query<(&Transform)>,
+    query: &Query<&Transform>,
     neighbours: Vec<Entity>,
     perception: f32,
 ) -> Vec3 {
     let perception_squared = f32::pow(perception, 2);
     let local_tf = query.get(entity).unwrap();
     let mut count = 0;
-
+/*
     let steer: Vec3 = neighbours
         .into_iter()
 
         // Exclude current boid
-        .filter(|v| v != &entity)
+        .filter(|e| e != &entity)
 
         // Get all transforms
         .map(|v| query.get(v).unwrap().translation )
@@ -184,6 +188,20 @@ pub fn measure_coherence(
         .map(|v| {
             count += 1;
             return v;
+        })
+        .sum();
+*/
+    let steer: Vec3 = neighbours
+        .into_iter()
+        .map(|e|{
+            if e == entity { return Vec3::ZERO }
+            let tf = query.get(e).unwrap();
+            return if tf.translation.distance_squared(local_tf.translation) <= perception_squared {
+                count += 1;
+                tf.translation
+            } else {
+                Vec3::ZERO
+            }
         })
         .sum();
 
@@ -200,13 +218,13 @@ pub fn separation_system(
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
 ) {
+    if rules.freeze_world { return;}
     for (ent, tf, mut sep) in &mut query {
-
         // Use data from spatial hash instead of all boids
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        sep.force = measure_separation(ent, &boids, neighbours, rules.perception_range) * rules.separation_factor;
+        sep.force += measure_separation(ent, &boids, neighbours, rules.desired_separation) * rules.separation_factor;
     }
 }
 
@@ -224,7 +242,7 @@ pub fn measure_separation(
         .into_iter()
 
         // Exclude our current boid
-        .filter(|e| entity != *e )
+        .filter(|&e| entity != e )
 
         // Get all translations
         .map(|e| query.get(e).unwrap().translation)
@@ -236,7 +254,6 @@ pub fn measure_separation(
             count += 1;
             -1.0 * (v - local_tf)
         })
-        .map(|v| v / v.length() * (perception / v.length()))
 
         .sum();
 
@@ -249,11 +266,12 @@ pub fn alignment_system(
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
 ) {
+    if rules.freeze_world { return;}
     for (ent, tf, mov, mut ali) in &mut query {
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        ali.force = measure_alignment(ent, &boids, neighbours, rules.perception_range) * rules.alignment_factor;
+        ali.force += measure_alignment(ent, &boids, neighbours, rules.perception_range) * rules.alignment_factor;
     }
 
 }
@@ -265,21 +283,20 @@ pub fn measure_alignment(
     perception: f32,
 ) -> Vec3 {
     let mut count = 0;
-    let local_tf = query.get(entity).unwrap().0.translation;
-    let local_mov = query.get(entity).unwrap().1;
+    let (local_tf, local_mov) = query.get(entity).unwrap();
     let perception_squared = pow(perception, 2);
 
     let steer: Vec3 = neighbours
         .into_iter()
-        .filter(|e| entity != *e)
+        .filter(|&e| entity != e)
 
         // Get transforms and movement components
         .map(|e| query.get(e).unwrap())
 
         // Excludes boids that are too far
-        .filter(|(&tf, &mv)| tf.translation.distance_squared(local_tf) <= perception_squared)
+        .filter(|(&tf, _)| tf.translation.distance_squared(local_tf.translation) <= perception_squared)
 
-        .map(|(&tf, &mv)| {
+        .map(|(_, &mv)| {
             count += 1;
             return mv.vel;
         })
@@ -313,9 +330,7 @@ pub fn boundaries_system(
     boids: Res<BoidsRules>,
 ) {
     for (tf, mut bound) in &mut query {
-        bound.force = Vec3::ZERO;
-
-        if tf.translation.x >= rules.right {
+       /* if tf.translation.x >= rules.right {
             // Right X bound
             let delta = rules.right - tf.translation.x;
             bound.force.x = delta * boids.stay_inside;
@@ -333,7 +348,9 @@ pub fn boundaries_system(
             // Top Y bound
             let delta = rules.top - tf.translation.y;
             bound.force.y = delta * boids.stay_inside;
-        }
+        }*/
+
+        bound.force = -tf.translation / rules.range * boids.stay_inside;
     }
 }
 
