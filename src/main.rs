@@ -44,7 +44,7 @@ fn main() {
             coherence_factor: 0.001,
             alignment_factor: 0.0125,
             separation_factor: 0.012,
-            stay_inside: 12.00,
+            stay_inside: 8.0,
             desired_speed: 175.0,
             max_force: 4.0,
             max_velocity: 225.0,
