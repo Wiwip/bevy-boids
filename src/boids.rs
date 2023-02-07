@@ -152,7 +152,7 @@ pub fn coherence_system(
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        coh.force += measure_coherence(ent, &boids, neighbours, rules.perception_range) * rules.coherence_factor;
+        coh.force = measure_coherence(ent, &boids, neighbours, rules.perception_range) * rules.coherence_factor;
     }
 }
 
@@ -218,7 +218,7 @@ pub fn separation_system(
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        sep.force += measure_separation(ent, &boids, neighbours, rules.desired_separation) * rules.separation_factor;
+        sep.force = measure_separation(ent, &boids, neighbours, rules.desired_separation) * rules.separation_factor;
     }
 }
 
@@ -246,7 +246,8 @@ pub fn measure_separation(
 
         .map(|v| {
             count += 1;
-            -1.0 * (v - local_tf)
+            let sep = -1.0 * (v - local_tf);
+            sep / sep.length() * perception
         })
 
         .sum();
@@ -265,7 +266,7 @@ pub fn alignment_system(
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        ali.force += measure_alignment(ent, &boids, neighbours, rules.perception_range) * rules.alignment_factor;
+        ali.force = measure_alignment(ent, &boids, neighbours, rules.perception_range) * rules.alignment_factor;
     }
 
 }
@@ -324,7 +325,8 @@ pub fn boundaries_system(
     boids: Res<BoidsRules>,
 ) {
     for (tf, mut bound) in &mut query {
-       /* if tf.translation.x >= rules.right {
+
+        if tf.translation.x >= rules.right {
             // Right X bound
             let delta = rules.right - tf.translation.x;
             bound.force.x = delta * boids.stay_inside;
@@ -342,9 +344,9 @@ pub fn boundaries_system(
             // Top Y bound
             let delta = rules.top - tf.translation.y;
             bound.force.y = delta * boids.stay_inside;
-        }*/
+        }
 
-        bound.force = -tf.translation / rules.range * boids.stay_inside;
+        //bound.force = -tf.translation / rules.range * boids.stay_inside;
     }
 }
 

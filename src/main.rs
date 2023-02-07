@@ -40,15 +40,15 @@ fn main() {
         })
         .insert_resource(BoidsRules {
             perception_range: 32.0,
-            desired_separation: 8.0,
-            coherence_factor: 0.001,
-            alignment_factor: 0.0125,
-            separation_factor: 0.012,
-            stay_inside: 8.0,
+            desired_separation: 20.0,
+            coherence_factor: 0.08,
+            alignment_factor: 0.08,
+            separation_factor: 0.08,
+            stay_inside: 0.05,
             desired_speed: 175.0,
-            max_force: 4.0,
+            max_force: 6.0,
             max_velocity: 225.0,
-            velocity_match_factor: 0.0,
+            velocity_match_factor: 0.01,
             freeze_world: false,
         })
         .insert_resource(Spatial{

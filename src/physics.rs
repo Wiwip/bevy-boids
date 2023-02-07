@@ -69,14 +69,15 @@ pub fn move_system(
     if boid_rules.freeze_world { return; }
 
     for (mut tf, mut mov, mut acc) in &mut query {
-        let mut acc = acc.vec;
+        let mut accel = acc.vec;
         // Clamp max acceleration
-        if acc.length() > boid_rules.max_force {
-            acc = acc / acc.length() * boid_rules.max_force;
+        if accel.length() > boid_rules.max_force {
+            accel = accel / accel.length() * boid_rules.max_force;
         }
 
         // Apply acceleration changes to velocity.
-        mov.vec += acc * time.delta_seconds();
+        mov.vec += accel * time.delta_seconds();
+        acc.vec = Vec3::ZERO;
 
         // Clamp velocity
         if mov.vec.length() > boid_rules.max_velocity {
