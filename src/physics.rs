@@ -2,9 +2,19 @@ use bevy::math::ivec3;
 use bevy::prelude::*;
 use bevy::utils::hashbrown::hash_map::Entry;
 use bevy::utils::HashMap;
-use crate::boids::{Boid, BoidsRules, Movement};
+use crate::boids::{Boid, BoidsRules};
 use crate::velocity_angle;
 
+
+#[derive(Component, Copy, Clone, Default)]
+pub struct Velocity{
+    pub vec: Vec3,
+}
+
+#[derive(Component, Copy, Clone, Default)]
+pub struct Acceleration {
+    pub vec: Vec3,
+}
 
 #[derive(Resource, Default)]
 pub struct Spatial {
@@ -45,37 +55,35 @@ impl Spatial {
     }
 }
 
-pub fn rotation_system(mut query: Query<(&mut Transform, &Movement)>) {
-    for (mut tf, mov) in &mut query {
-        tf.rotation = Quat::from_rotation_z(velocity_angle(&mov.vel));
+pub fn rotation_system(mut query: Query<(&mut Transform, &Velocity)>) {
+    for (mut tf, vel) in &mut query {
+        tf.rotation = Quat::from_rotation_z(velocity_angle(&vel.vec));
     }
 }
 
 pub fn move_system(
-    mut query: Query<(&mut Transform, &mut Movement)>, // TODO split velocity and acceleration components
+    mut query: Query<(&mut Transform, &mut Velocity, &mut Acceleration)>, // TODO split velocity and acceleration components
     boid_rules: Res<BoidsRules>,
     time: Res<Time>,
 ) {
     if boid_rules.freeze_world { return; }
 
-    for (mut tf, mut mov) in &mut query {
-        let mut acc = mov.acc;
+    for (mut tf, mut mov, mut acc) in &mut query {
+        let mut acc = acc.vec;
         // Clamp max acceleration
         if acc.length() > boid_rules.max_force {
             acc = acc / acc.length() * boid_rules.max_force;
         }
 
         // Apply acceleration changes to velocity.
-        mov.vel = mov.vel + acc * time.delta_seconds();
+        mov.vec += acc * time.delta_seconds();
 
         // Clamp velocity
-        let max_vel = boid_rules.max_velocity; // TODO move max vel
-        if mov.vel.length() > max_vel {
-            mov.vel = mov.vel / mov.vel.length() * max_vel;
+        if mov.vec.length() > boid_rules.max_velocity {
+            mov.vec = mov.vec / mov.vec.length() * boid_rules.max_velocity;
         }
 
-        tf.translation = tf.translation + mov.vel * time.delta_seconds();
-        //mov.acc = Vec3::ZERO;
+        tf.translation += mov.vec * time.delta_seconds();
     }
 }
 

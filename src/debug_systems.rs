@@ -4,8 +4,8 @@ use bevy::render::camera::RenderTarget;
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_prototype_debug_lines::DebugLines;
 use rand_distr::num_traits::{pow, Pow};
-use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, measure_alignment, measure_coherence, measure_separation, Movement, WorldBoundForce};
-use flock_sim::physics::Spatial;
+use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, measure_alignment, measure_coherence, measure_separation, WorldBoundForce};
+use flock_sim::physics::{Spatial, Velocity};
 
 
 #[derive(Component, Default)]
@@ -68,7 +68,7 @@ impl Plugin for BoidsDebugTools {
 }
 
 pub fn other_display_debug(
-    query: Query<(&Transform, &Movement, &BoidsAlignment, &BoidsCoherence, &BoidsSeparation, &WorldBoundForce, &DesiredVelocity, &DebugBoid)>,
+    query: Query<(&Transform, &Velocity, &BoidsAlignment, &BoidsCoherence, &BoidsSeparation, &WorldBoundForce, &DesiredVelocity, &DebugBoid)>,
     config: Res<DebugConfig>,
     mut lines: ResMut<DebugLines>,
 ) {
@@ -168,8 +168,8 @@ pub fn debug_separation(
 }
 
 fn debug_alignment(
-    query: Query<(Entity, &Transform, &Movement, &BoidsAlignment, &DebugBoid)>,
-    list: Query<(&Transform, &Movement)>,
+    query: Query<(Entity, &Transform, &Velocity, &BoidsAlignment, &DebugBoid)>,
+    list: Query<(&Transform, &Velocity)>,
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
     mut lines: ResMut<DebugLines>,

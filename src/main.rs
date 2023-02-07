@@ -9,8 +9,8 @@ use bevy::prelude::*;
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_prototype_debug_lines::*;
 use rand::Rng;
-use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, BoidsSimulation, DesiredVelocity, GameRules, Movement, WorldBoundForce};
-use flock_sim::physics::{rotation_system, Spatial, spatial_hash_system};
+use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, BoidsSimulation, DesiredVelocity, GameRules, WorldBoundForce};
+use flock_sim::physics::{Acceleration, rotation_system, Spatial, spatial_hash_system, Velocity};
 
 use crate::debug_systems::{BoidsDebugTools, DebugBoid};
 
@@ -75,15 +75,16 @@ fn setup(mut commands: Commands, rules: Res<GameRules>) {
     commands.spawn(Camera2dBundle::default());
 
     let vectors = get_random_boids(rules.particle_count);
-    for mov in vectors {
+    for velocity in vectors {
         let position = vec2(rng.gen_range(rules.left..rules.right), rng.gen_range(rules.bottom..rules.top));
         let mut sprite_bundle = build_sprite_bundle(position);
-        sprite_bundle.transform.rotation = Quat::from_rotation_z(f32::atan2(mov.vel.y, mov.vel.x));
+        sprite_bundle.transform.rotation = Quat::from_rotation_z(f32::atan2(velocity.vec.y, velocity.vec.x));
 
         commands.spawn((
             sprite_bundle,
             Boid,
-            mov,
+            velocity,
+            Acceleration::default(),
             BoidsCoherence::default(),
             BoidsSeparation::default(),
             BoidsAlignment::default(),
@@ -132,7 +133,8 @@ fn spawn_debug_particle(
         sprite,
         Boid,
         debug_bundle,
-        Movement::default(),
+        Velocity::default(),
+        Acceleration::default(),
         BoidsCoherence::default(),
         BoidsSeparation::default(),
         BoidsAlignment::default(),
@@ -156,14 +158,14 @@ fn build_sprite_bundle(
     return sprite_bundle;
 }
 
-fn get_random_boids(count: u32) -> Vec<Movement> {
+fn get_random_boids(count: u32) -> Vec<Velocity> {
     let mut rng = rand::thread_rng();
-    let mut particles: Vec<Movement> = Vec::new();
+    let mut particles: Vec<Velocity> = Vec::new();
 
     for _ in 0..count {
         let angle = Quat::from_rotation_z(rng.gen_range(0.0..2.0 * PI));
         let velocity = angle.mul_vec3(Vec3::X) * 75.0;
-        let _ = &particles.push(Movement { vel: velocity, acc: default() });
+        let _ = &particles.push(Velocity { vec: velocity });
     }
 
     particles

@@ -4,7 +4,7 @@ use std::vec::Vec;
 use bevy_inspector_egui::Inspectable;
 use rand_distr::num_traits::{Pow, pow};
 
-use crate::physics::{move_system, Spatial};
+use crate::physics::{Acceleration, move_system, Spatial, Velocity};
 
 pub struct BoidsSimulation;
 
@@ -63,12 +63,6 @@ pub struct GameRules {
 
 pub trait BoidForce {
     fn get_force(&self) -> Vec3;
-}
-
-#[derive(Component, Inspectable, Copy, Clone, Default)]
-pub struct Movement {
-    pub vel: Vec3,
-    pub acc: Vec3,
 }
 
 #[derive(Component)]
@@ -137,12 +131,12 @@ pub enum BoidStage {
 }
 
 pub fn boid_integrator_system<T: Component + BoidForce>(
-    mut query: Query<(&mut Movement, &T)>,
+    mut query: Query<(&mut Velocity, &mut Acceleration, &T)>,
     rules: Res<BoidsRules>,
 ) {
     if rules.freeze_world { return;}
-    for (mut mov, cp) in &mut query {
-        mov.vel += cp.get_force()
+    for (mut vel, acc, cp) in &mut query {
+        vel.vec += cp.get_force()
     }
 }
 
@@ -261,13 +255,13 @@ pub fn measure_separation(
 }
 
 pub fn alignment_system(
-    mut query: Query<(Entity, &Transform, &Movement, &mut BoidsAlignment)>,
-    boids: Query<(&Transform, &Movement)>,
+    mut query: Query<(Entity, &Transform, &mut BoidsAlignment)>,
+    boids: Query<(&Transform, &Velocity)>,
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
 ) {
     if rules.freeze_world { return;}
-    for (ent, tf, mov, mut ali) in &mut query {
+    for (ent, tf, mut ali) in &mut query {
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
@@ -278,7 +272,7 @@ pub fn alignment_system(
 
 pub fn measure_alignment(
     entity: Entity,
-    query: &Query<(&Transform, &Movement)>,
+    query: &Query<(&Transform, &Velocity)>,
     neighbours: Vec<Entity>,
     perception: f32,
 ) -> Vec3 {
@@ -296,26 +290,26 @@ pub fn measure_alignment(
         // Excludes boids that are too far
         .filter(|(&tf, _)| tf.translation.distance_squared(local_tf.translation) <= perception_squared)
 
-        .map(|(_, &mv)| {
+        .map(|(_, &vel)| {
             count += 1;
-            return mv.vel;
+            return vel.vec;
         })
         .sum();
 
     return if count == 0 {
         Vec3::ZERO
     } else {
-        (steer / count as f32) - local_mov.vel
+        (steer / count as f32) - local_mov.vec
     }
 }
 
 pub fn desired_velocity_system(
-    mut query: Query<(&Movement, &mut DesiredVelocity)>,
+    mut query: Query<(&Velocity, &mut DesiredVelocity)>,
     rules: Res<BoidsRules>,
 ) {
-    for (mov, mut des) in &mut query {
-        let delta_vel = rules.desired_speed - mov.vel.length();
-        let unit_vel = mov.vel / mov.vel.length();
+    for (vel, mut des) in &mut query {
+        let delta_vel = rules.desired_speed - vel.vec.length();
+        let unit_vel = vel.vec / vel.vec.length();
 
         if !unit_vel.is_nan() {
             des.force = unit_vel * delta_vel * rules.velocity_match_factor;
