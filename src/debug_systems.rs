@@ -3,8 +3,7 @@ use bevy::prelude::*;
 use bevy::render::camera::RenderTarget;
 use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 use bevy_prototype_debug_lines::DebugLines;
-use rand_distr::num_traits::{pow, Pow};
-use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameRules, measure_alignment, measure_coherence, measure_separation, WorldBoundForce};
+use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, GameRules, measure_alignment, measure_coherence, measure_separation, WorldBoundForce};
 use flock_sim::physics::{Spatial, Velocity};
 
 
@@ -22,7 +21,6 @@ pub struct DebugBoid {
 #[derive(Resource, Inspectable, Default)]
 pub struct DebugConfig {
     pub track_mouse: bool,
-    pub freeze_world: bool,
     pub display_separation_sum: bool,
     pub display_separation: bool,
     pub display_cohesion: bool,
@@ -47,7 +45,6 @@ impl Plugin for BoidsDebugTools {
         app.add_system_to_stage(DEBUG, debug_alignment);
         app.add_system_to_stage(DEBUG, debug_perception_range);
         app.add_system_to_stage(DEBUG, debug_world_bounds);
-        app.add_system_to_stage(DEBUG, other_display_debug);
         app.add_system_to_stage(DEBUG, mouse_track);
         app.add_system_to_stage(DEBUG, color_debug_boid_system);
         app.add_system_to_stage(DEBUG, debug_tag_spatial_hash_system);
@@ -65,40 +62,6 @@ impl Plugin for BoidsDebugTools {
             ..default()
         });
     }
-}
-
-pub fn other_display_debug(
-    query: Query<(&Transform, &Velocity, &BoidsAlignment, &BoidsCoherence, &BoidsSeparation, &WorldBoundForce, &DesiredVelocity, &DebugBoid)>,
-    config: Res<DebugConfig>,
-    mut lines: ResMut<DebugLines>,
-) {
-    /*
-    for (tf, mov, ali, coh, sep, bound, des, boid) in query.iter(){
-        let duration = 0.0;     // Duration of 0 will show the line for 1 frame.
-        let acc = bound.force + ali.force + coh.force + sep.force + des.force;
-
-        // Don't display all other vectors // TODO better handling of separate vector viewer
-        if !boid.track_mouse {
-            continue;
-        }
-        if config.display_alignment {
-            lines.line_colored(config.debug_location, config.debug_location + ali.force * config.debug_vector_mag, duration, Color::PURPLE);
-        }
-
-        if config.display_cohesion {
-            lines.line_colored(config.debug_location, config.debug_location + coh.force * config.debug_vector_mag, duration, Color::GREEN);
-        }
-
-        if config.display_separation_sum {
-            lines.line_colored(config.debug_location, config.debug_location + sep.force * config.debug_vector_mag, duration, Color::RED);
-        }
-
-        if config.velocity_info {
-            lines.line_colored(tf.translation, tf.translation + mov.vel * config.debug_vector_mag, duration, Color::PURPLE);
-            lines.line_colored(config.debug_location, config.debug_location + des.force * config.debug_vector_mag, duration, Color::WHITE);
-            lines.line_colored(config.debug_location, config.debug_location + acc * config.debug_vector_mag, duration, Color::ORANGE);
-        }
-    }*/
 }
 
 pub fn debug_world_bounds(
@@ -121,19 +84,19 @@ pub fn debug_world_bounds(
     let duration = 0.0;     // Duration of 0 will show the line for 1 frame.
     lines.line_colored(start, end, duration, Color::BLACK);
 
-    for (tf, bound, debug) in query.iter(){
+    for (tf, bound, _) in query.iter(){
         lines.line_colored(tf.translation, tf.translation + bound.force, duration, Color::CYAN);
     }
 }
 
 pub fn debug_cohesion(
     query: Query<(Entity, &Transform, &BoidsCoherence, &DebugBoid)>,
-    boids: Query<(&Transform)>,
+    boids: Query<&Transform>,
     rules: Res<BoidsRules>,
     mut lines: ResMut<DebugLines>,
     map: Res<Spatial>,
 ) {
-    for (ent, tf, coh, debug) in query.iter() {
+    for (ent, tf, _, debug) in query.iter() {
         // Display only for debug_cohesion enabled boids
         if !debug.show_cohesion {
             continue;
@@ -150,7 +113,7 @@ pub fn debug_cohesion(
 
 pub fn debug_separation(
     query: Query<(Entity, &Transform, &BoidsSeparation, &DebugBoid)>,
-    boids: Query<(&Transform)>,
+    boids: Query<&Transform>,
     rules: Res<BoidsRules>,
     mut lines: ResMut<DebugLines>,
     map: Res<Spatial>,
@@ -174,7 +137,7 @@ fn debug_alignment(
     map: Res<Spatial>,
     mut lines: ResMut<DebugLines>,
 ) {
-    for (ent, tf, mov, ali, debug_boid) in query.iter() {
+    for (ent, tf, _, _, debug_boid) in query.iter() {
         // Display only for debug_cohesion enabled boids
         if !debug_boid.show_alignment {
             continue;
@@ -245,7 +208,7 @@ pub fn debug_perception_range(
             continue;
         }
 
-        for (other_ent, other_tf, mut sprite, boid) in &mut list {
+        for (other_ent, other_tf, mut sprite, _) in &mut list {
             if ent == other_ent { continue; }
 
             sprite.color = Color::BLUE;
@@ -277,7 +240,6 @@ fn debug_tag_spatial_hash_system(
     mut query: Query<(&DebugBoid, &Transform, &mut Sprite)>,
     boid: Res<BoidsRules>,
     hash: ResMut<Spatial>,
-    mut lines: ResMut<DebugLines>,
 ) {
     for (debug, tf, mut sprite) in &mut query {
         if !debug.spatial_hash { continue; }

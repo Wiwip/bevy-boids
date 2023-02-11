@@ -2,14 +2,13 @@ extern crate bevy;
 
 use std::f32;
 use std::f32::consts::PI;
-use std::ops::{BitAnd, Div, Sub};
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::math::{ivec3, vec2};
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, InspectorPlugin};
+use bevy_inspector_egui::{InspectorPlugin};
 use bevy_prototype_debug_lines::*;
 use rand::Rng;
-use flock_sim::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, BoidsSimulation, DesiredVelocity, GameRules, WorldBoundForce};
+use flock_sim::boids::{Boid, BoidBundle, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, BoidsSimulation, DesiredVelocity, GameRules, WorldBoundForce};
 use flock_sim::physics::{Acceleration, rotation_system, Spatial, spatial_hash_system, Velocity};
 
 use crate::debug_systems::{BoidsDebugTools, DebugBoid};
@@ -41,15 +40,14 @@ fn main() {
         .insert_resource(BoidsRules {
             perception_range: 32.0,
             desired_separation: 20.0,
-            coherence_factor: 0.08,
-            alignment_factor: 0.08,
-            separation_factor: 0.08,
-            stay_inside: 0.05,
+            coherence_factor: 8.0,
+            alignment_factor: 8.0,
+            separation_factor: 8.0,
+            stay_inside: 10.0,
             desired_speed: 175.0,
-            max_force: 6.0,
+            max_force: 1000.0,
             max_velocity: 225.0,
-            velocity_match_factor: 0.01,
-            freeze_world: false,
+            velocity_match_factor: 2.00,
         })
         .insert_resource(Spatial{
             map: Default::default(),
@@ -80,17 +78,11 @@ fn setup(mut commands: Commands, rules: Res<GameRules>) {
         let mut sprite_bundle = build_sprite_bundle(position);
         sprite_bundle.transform.rotation = Quat::from_rotation_z(f32::atan2(velocity.vec.y, velocity.vec.x));
 
-        commands.spawn((
-            sprite_bundle,
-            Boid,
-            velocity,
-            Acceleration::default(),
-            BoidsCoherence::default(),
-            BoidsSeparation::default(),
-            BoidsAlignment::default(),
-            DesiredVelocity::default(),
-            WorldBoundForce::default()
-        ));
+        commands.spawn(BoidBundle {
+            vel: velocity,
+            sp: sprite_bundle,
+            ..default()
+        });
     }
 
     spawn_debug_particle(&mut commands, vec2(400.0, 0.0),
@@ -129,17 +121,13 @@ fn spawn_debug_particle(
 ) {
     let sprite = build_sprite_bundle(position);
 
-    commands.spawn((
-        sprite,
-        Boid,
+    commands.spawn((BoidBundle{
+        sp: sprite,
+        ..default()
+        },
         debug_bundle,
-        Velocity::default(),
-        Acceleration::default(),
-        BoidsCoherence::default(),
-        BoidsSeparation::default(),
-        BoidsAlignment::default(),
-        DesiredVelocity::default(),
-        WorldBoundForce::default()));
+    ));
+
 }
 
 fn build_sprite_bundle(

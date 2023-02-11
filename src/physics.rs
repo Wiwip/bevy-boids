@@ -1,13 +1,15 @@
+use std::ops::Mul;
+
 use bevy::math::ivec3;
 use bevy::prelude::*;
 use bevy::utils::hashbrown::hash_map::Entry;
 use bevy::utils::HashMap;
+
 use crate::boids::{Boid, BoidsRules};
 use crate::velocity_angle;
 
-
 #[derive(Component, Copy, Clone, Default)]
-pub struct Velocity{
+pub struct Velocity {
     pub vec: Vec3,
 }
 
@@ -61,30 +63,34 @@ pub fn rotation_system(mut query: Query<(&mut Transform, &Velocity)>) {
     }
 }
 
-pub fn move_system(
-    mut query: Query<(&mut Transform, &mut Velocity, &mut Acceleration)>, // TODO split velocity and acceleration components
+pub fn force_application_system(
+    mut query: Query<(&mut Velocity, &mut Acceleration)>,
     boid_rules: Res<BoidsRules>,
     time: Res<Time>,
 ) {
-    if boid_rules.freeze_world { return; }
-
-    for (mut tf, mut mov, mut acc) in &mut query {
-        let mut accel = acc.vec;
+    for (mut vel, mut acc) in &mut query {
         // Clamp max acceleration
-        if accel.length() > boid_rules.max_force {
-            accel = accel / accel.length() * boid_rules.max_force;
+        if acc.vec.length() > boid_rules.max_force {
+            acc.vec = acc.vec.normalize_or_zero().mul(boid_rules.max_force);
         }
 
         // Apply acceleration changes to velocity.
-        mov.vec += accel * time.delta_seconds();
+        vel.vec += acc.vec * time.delta_seconds();
         acc.vec = Vec3::ZERO;
 
-        // Clamp velocity
-        if mov.vec.length() > boid_rules.max_velocity {
-            mov.vec = mov.vec / mov.vec.length() * boid_rules.max_velocity;
+        // Clamp velocity before releasing to other systems
+        if vel.vec.length() > boid_rules.max_velocity {
+            vel.vec = vel.vec.normalize_or_zero().mul(boid_rules.max_velocity);
         }
+    }
+}
 
-        tf.translation += mov.vec * time.delta_seconds();
+pub fn velocity_system(
+    mut query: Query<(&mut Transform, &Velocity)>,
+    time: Res<Time>,
+) {
+    for (mut tf, vel) in &mut query {
+        tf.translation += vel.vec * time.delta_seconds();
     }
 }
 
