@@ -1,11 +1,11 @@
 use std::vec::Vec;
 
 use bevy::prelude::*;
-use bevy::reflect::Array;
 use bevy_inspector_egui::Inspectable;
 use rand_distr::num_traits::{Pow, pow};
 
-use crate::physics::{Acceleration, force_application_system, velocity_system, Spatial, Velocity};
+use crate::physics::{Acceleration, force_application_system, velocity_system, Spatial, Velocity, ObstacleAvoidance};
+
 
 pub struct BoidsSimulation;
 
@@ -29,6 +29,7 @@ impl Plugin for BoidsSimulation {
                     .with_system(boid_integrator_system::<BoidsSeparation>)
                     .with_system(boid_integrator_system::<WorldBoundForce>)
                     .with_system(boid_integrator_system::<DesiredVelocity>)
+                    .with_system(boid_integrator_system::<ObstacleAvoidance>)
             );
             app.add_system(force_application_system
                 .after(BoidStage::ForceIntegration)

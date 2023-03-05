@@ -8,12 +8,10 @@ use bevy::prelude::*;
 use bevy_inspector_egui::{InspectorPlugin};
 use bevy_prototype_debug_lines::*;
 use rand::Rng;
-use flock_sim::boids::{Boid, BoidBundle, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, BoidsSimulation, DesiredVelocity, GameRules, WorldBoundForce};
-use flock_sim::physics::{Acceleration, rotation_system, Spatial, spatial_hash_system, Velocity};
-
-use crate::debug_systems::{BoidsDebugTools, DebugBoid};
-
-mod debug_systems;
+use flock_sim::boids::{BoidBundle, BoidsRules, BoidsSimulation, GameRules};
+use flock_sim::debug_systems::{BoidsDebugTools, DebugBoid};
+use flock_sim::physics::{obstacle_avoidance_system, ObstacleAvoidance, rotation_system, Spatial, spatial_hash_system, Velocity};
+use bevy_rapier2d::prelude::*;
 
 
 fn main() {
@@ -25,9 +23,18 @@ fn main() {
         .add_plugin(BoidsSimulation)
         .add_plugin(InspectorPlugin::<BoidsRules>::new())
 
+        // Rapier 2D
+        .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
+        .add_plugin(RapierDebugRenderPlugin::default())
+
+        .insert_resource(RapierConfiguration{
+            gravity: Vec2::ZERO,
+            ..default()
+        })
+
         // FPS Debug
-        .add_plugin(LogDiagnosticsPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        //.add_plugin(LogDiagnosticsPlugin::default())
+        //.add_plugin(FrameTimeDiagnosticsPlugin::default())
 
         .insert_resource(GameRules {
             left: -1600.0 / 2.0,
@@ -61,6 +68,7 @@ fn main() {
 
         .add_system(rotation_system)
         .add_system(spatial_hash_system)
+        .add_system(obstacle_avoidance_system)
         .run();
 }
 
@@ -78,11 +86,14 @@ fn setup(mut commands: Commands, rules: Res<GameRules>) {
         let mut sprite_bundle = build_sprite_bundle(position);
         sprite_bundle.transform.rotation = Quat::from_rotation_z(f32::atan2(velocity.vec.y, velocity.vec.x));
 
-        commands.spawn(BoidBundle {
+        commands.spawn((
+            BoidBundle {
             vel: velocity,
             sp: sprite_bundle,
             ..default()
-        });
+            },
+            ObstacleAvoidance::default()
+        ));
     }
 
     spawn_debug_particle(&mut commands, vec2(400.0, 0.0),
@@ -112,6 +123,17 @@ fn setup(mut commands: Commands, rules: Res<GameRules>) {
                              color: Color::BLACK,
                              ..default()
                          });
+
+    commands
+        .spawn(RigidBody::Fixed)
+        .insert(Collider::ball(50.0))
+        .insert(TransformBundle::from(Transform::from_xyz(100.0, 200.0, 0.0)));
+
+    commands
+        .spawn(RigidBody::Fixed)
+        .insert(Collider::triangle(vec2(25.0, 0.0), vec2(-25.0, 0.0), vec2(0.0, 75.0)))
+        .insert(TransformBundle::from(Transform::from_xyz(-200.0, -150.0, 0.0)));
+
 }
 
 fn spawn_debug_particle(
@@ -124,8 +146,8 @@ fn spawn_debug_particle(
     commands.spawn((BoidBundle{
         sp: sprite,
         ..default()
-        },
-        debug_bundle,
+    },
+                    debug_bundle,
     ));
 
 }
