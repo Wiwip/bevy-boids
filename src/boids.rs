@@ -2,33 +2,42 @@ use std::vec::Vec;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::prelude::*;
-use rand_distr::num_traits::{Pow, pow};
+use rand_distr::num_traits::{pow, Pow};
 
-use crate::physics::{Acceleration, force_application_system, velocity_system, Spatial, Velocity, ObstacleAvoidance};
-
+use crate::physics::{
+    force_application_system, velocity_system, Acceleration, ObstacleAvoidance, Spatial, Velocity,
+};
 
 pub struct BoidsSimulation;
 
 impl Plugin for BoidsSimulation {
     fn build(&self, app: &mut App) {
         app.add_systems(
-            (separation_system, alignment_system, coherence_system, desired_velocity_system, boundaries_system)
-                .in_set(BoidStage::ForceCalculation)
+            (
+                separation_system,
+                alignment_system,
+                coherence_system,
+                desired_velocity_system,
+                boundaries_system,
+            )
+                .in_set(BoidStage::ForceCalculation),
         );
 
         app.add_systems(
-            (boid_integrator_system::<BoidsCoherence>,
-             boid_integrator_system::<BoidsAlignment>,
-             boid_integrator_system::<BoidsSeparation>,
-             boid_integrator_system::<WorldBoundForce>,
-             boid_integrator_system::<DesiredVelocity>,
-             boid_integrator_system::<ObstacleAvoidance>)
-                .in_set(BoidStage::ForceIntegration)
+            (
+                boid_integrator_system::<BoidsCoherence>,
+                boid_integrator_system::<BoidsAlignment>,
+                boid_integrator_system::<BoidsSeparation>,
+                boid_integrator_system::<WorldBoundForce>,
+                boid_integrator_system::<DesiredVelocity>,
+                boid_integrator_system::<ObstacleAvoidance>,
+            )
+                .in_set(BoidStage::ForceIntegration),
         );
         app.add_systems(
             (force_application_system, velocity_system)
                 .chain()
-                .in_set(BoidStage::ForceApplication)
+                .in_set(BoidStage::ForceApplication),
         );
 
         app.configure_set(BoidStage::ForceCalculation.before(BoidStage::ForceIntegration));
@@ -158,9 +167,7 @@ pub enum BoidStage {
     ForceApplication,
 }
 
-pub fn boid_integrator_system<T: Component + BoidForce>(
-    mut query: Query<(&mut Acceleration, &T)>,
-) {
+pub fn boid_integrator_system<T: Component + BoidForce>(mut query: Query<(&mut Acceleration, &T)>) {
     for (mut acc, cp) in &mut query {
         acc.vec += cp.get_force()
     }
@@ -176,7 +183,8 @@ pub fn coherence_system(
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        coh.force = measure_coherence(ent, &boids, neighbours, rules.perception_range) * rules.coherence_factor;
+        coh.force = measure_coherence(ent, &boids, neighbours, rules.perception_range)
+            * rules.coherence_factor;
     }
 }
 
@@ -193,7 +201,9 @@ pub fn measure_coherence(
     let steer: Vec3 = neighbours
         .into_iter()
         .map(|e| {
-            if e == entity { return Vec3::ZERO; }
+            if e == entity {
+                return Vec3::ZERO;
+            }
             let tf = query.get(e).unwrap();
             return if tf.translation.distance_squared(local_tf.translation) <= perception_squared {
                 count += 1;
@@ -222,7 +232,8 @@ pub fn separation_system(
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        sep.force = measure_separation(ent, &boids, neighbours, rules.desired_separation) * rules.separation_factor;
+        sep.force = measure_separation(ent, &boids, neighbours, rules.desired_separation)
+            * rules.separation_factor;
     }
 }
 
@@ -238,22 +249,17 @@ pub fn measure_separation(
 
     let result = neighbours
         .into_iter()
-
         // Exclude our current boid
         .filter(|&e| entity != e)
-
         // Get all translations
         .map(|e| query.get(e).unwrap().translation)
-
         // Filter boids that are too far
         .filter(|v| v.distance_squared(local_tf) <= perception_squared)
-
         .map(|v| {
             count += 1;
             let sep = -1.0 * (v - local_tf);
             sep / sep.length() * perception
         })
-
         .sum();
 
     return result;
@@ -269,7 +275,8 @@ pub fn alignment_system(
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        ali.force = measure_alignment(ent, &boids, neighbours, rules.perception_range) * rules.alignment_factor;
+        ali.force = measure_alignment(ent, &boids, neighbours, rules.perception_range)
+            * rules.alignment_factor;
     }
 }
 
@@ -286,13 +293,12 @@ pub fn measure_alignment(
     let steer: Vec3 = neighbours
         .into_iter()
         .filter(|&e| entity != e)
-
         // Get transforms and movement components
         .map(|e| query.get(e).unwrap())
-
         // Excludes boids that are too far
-        .filter(|(&tf, _)| tf.translation.distance_squared(local_tf.translation) <= perception_squared)
-
+        .filter(|(&tf, _)| {
+            tf.translation.distance_squared(local_tf.translation) <= perception_squared
+        })
         .map(|(_, &vel)| {
             count += 1;
             return vel.vec;
@@ -319,7 +325,6 @@ pub fn desired_velocity_system(
         }
     }
 }
-
 
 pub fn boundaries_system(
     mut query: Query<(&Transform, &mut WorldBoundForce)>,
@@ -350,4 +355,3 @@ pub fn boundaries_system(
         //bound.force = -tf.translation / rules.range * boids.stay_inside;
     }
 }
-

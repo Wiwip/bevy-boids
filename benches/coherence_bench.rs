@@ -1,18 +1,16 @@
-
 use bevy::math::vec3;
 use bevy::prelude::*;
+use flock_sim::boids::{measure_coherence, Boid, BoidsCoherence, BoidsRules, Movement};
+use flock_sim::physics::{spatial_hash_system, Spatial};
 use rand::Rng;
-use flock_sim::boids::{Boid, BoidsCoherence, BoidsRules, measure_coherence, Movement};
-use flock_sim::physics::{Spatial, spatial_hash_system};
 
 pub struct Benchmark {
     world: World,
-    hash: Box<dyn System<In=(), Out=()>>,
-    forloop: Box<dyn System<In=(), Out=()>>,
-    iterator: Box<dyn System<In=(), Out=()>>,
-    lazy: Box<dyn System<In=(), Out=()>>,
+    hash: Box<dyn System<In = (), Out = ()>>,
+    forloop: Box<dyn System<In = (), Out = ()>>,
+    iterator: Box<dyn System<In = (), Out = ()>>,
+    lazy: Box<dyn System<In = (), Out = ()>>,
 }
-
 
 impl Benchmark {
     pub fn new() -> Self {
@@ -28,7 +26,11 @@ impl Benchmark {
         for _ in 0..2_000 {
             world.spawn((
                 Transform {
-                    translation: vec3(rng.gen_range(-1000.0..1000.0), rng.gen_range(-1000.0..1000.0), 0.0),
+                    translation: vec3(
+                        rng.gen_range(-1000.0..1000.0),
+                        rng.gen_range(-1000.0..1000.0),
+                        0.0,
+                    ),
                     rotation: Default::default(),
                     scale: Default::default(),
                 },
@@ -56,7 +58,7 @@ impl Benchmark {
         lazy.initialize(&mut world);
         lazy.update_archetype_component_access(&world);
 
-        Self{
+        Self {
             world,
             hash: Box::new(system),
             forloop: Box::new(foreach),
@@ -99,7 +101,9 @@ pub fn coherence_for(
 
         for neighbour in neighbours {
             let (other_ent, other_tf) = boids.get(neighbour).unwrap();
-            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
+            if ent == other_ent {
+                continue;
+            } // Don't count current entity as part of the center of flock
 
             let distance = other_tf.translation.distance(tf.translation);
             if distance < rules.perception_range {
@@ -111,7 +115,9 @@ pub fn coherence_for(
         coh.force += if count >= 0 {
             let mut steering = vec / count as f32;
             (steering - tf.translation) * rules.coherence_factor
-        } else { Vec3::ZERO };
+        } else {
+            Vec3::ZERO
+        };
         assert_ne!(coh.force, Vec3::ZERO);
     }
 }
@@ -125,11 +131,11 @@ pub fn coherence_map(
     assert_eq!(query.iter().count(), 2_000);
 
     for (ent, tf, mut coh) in &mut query {
-
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        coh.force += measure_coherence(ent, &boids, neighbours, rules.perception_range) * rules.coherence_factor;
+        coh.force += measure_coherence(ent, &boids, neighbours, rules.perception_range)
+            * rules.coherence_factor;
     }
 }
 
@@ -145,7 +151,9 @@ pub fn lazy_coherence(
         let mut vec = vec3(0.0, 0.0, 0.0);
 
         for (other_ent, other_tf) in &boids {
-            if ent == other_ent { continue; } // Don't count current entity as part of the center of flock
+            if ent == other_ent {
+                continue;
+            } // Don't count current entity as part of the center of flock
 
             let distance = other_tf.translation.distance(tf.translation);
             if distance < rules.perception_range {
@@ -157,6 +165,8 @@ pub fn lazy_coherence(
         coh.force += if count >= 0 {
             let mut steering = vec / count as f32;
             (steering - tf.translation) * rules.coherence_factor
-        } else { Vec3::ZERO };
+        } else {
+            Vec3::ZERO
+        };
     }
 }

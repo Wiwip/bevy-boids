@@ -1,10 +1,12 @@
+use crate::boids::{
+    measure_alignment, measure_coherence, measure_separation, Boid, BoidStage, BoidsAlignment,
+    BoidsCoherence, BoidsRules, BoidsSeparation, GameRules, WorldBoundForce,
+};
+use crate::physics::{Spatial, Velocity};
 use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy_inspector_egui::prelude::*;
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
-use crate::boids::{Boid, BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, BoidStage, GameRules, measure_alignment, measure_coherence, measure_separation, WorldBoundForce};
-use crate::physics::{Spatial, Velocity};
-
 
 #[derive(Component, Default)]
 pub struct DebugBoid {
@@ -36,18 +38,19 @@ pub struct BoidsDebugTools;
 
 impl Plugin for BoidsDebugTools {
     fn build(&self, app: &mut App) {
-
         app.add_systems(
-            (debug_separation,
-             debug_cohesion,
-             debug_alignment,
-             debug_perception_range,
-             debug_world_bounds,
-             mouse_track,
-             color_debug_boid_system,
-             debug_tag_spatial_hash_system,
-             debug_color_spatial_hash_system)
-                .after(BoidStage::ForceIntegration)
+            (
+                debug_separation,
+                debug_cohesion,
+                debug_alignment,
+                debug_perception_range,
+                debug_world_bounds,
+                mouse_track,
+                color_debug_boid_system,
+                debug_tag_spatial_hash_system,
+                debug_color_spatial_hash_system,
+            )
+                .after(BoidStage::ForceIntegration),
         );
 
         app.add_plugin(ResourceInspectorPlugin::<DebugConfig>::new());
@@ -76,16 +79,16 @@ pub fn debug_world_bounds(
 
     let start = vec3(rules.left, rules.top, 0.0);
     let end = vec3(rules.right, rules.top, 0.0);
-    let duration = 0.0;     // Duration of 0 will show the line for 1 frame.
-  //  lines.line_colored(start, end, duration, Color::BLACK);
+    let duration = 0.0; // Duration of 0 will show the line for 1 frame.
+                        //  lines.line_colored(start, end, duration, Color::BLACK);
 
     let start = vec3(rules.left, rules.bottom, 0.0);
     let end = vec3(rules.right, rules.bottom, 0.0);
-    let duration = 0.0;     // Duration of 0 will show the line for 1 frame.
-  //  lines.line_colored(start, end, duration, Color::BLACK);
+    let duration = 0.0; // Duration of 0 will show the line for 1 frame.
+                        //  lines.line_colored(start, end, duration, Color::BLACK);
 
-    for (tf, bound, _) in query.iter(){
-    //    lines.line_colored(tf.translation, tf.translation + bound.force, duration, Color::CYAN);
+    for (tf, bound, _) in query.iter() {
+        //    lines.line_colored(tf.translation, tf.translation + bound.force, duration, Color::CYAN);
     }
 }
 
@@ -93,7 +96,7 @@ pub fn debug_cohesion(
     query: Query<(Entity, &Transform, &BoidsCoherence, &DebugBoid)>,
     boids: Query<&Transform>,
     rules: Res<BoidsRules>,
-   // mut lines: ResMut<DebugLines>,
+    // mut lines: ResMut<DebugLines>,
     map: Res<Spatial>,
 ) {
     for (ent, tf, _, debug) in query.iter() {
@@ -107,7 +110,7 @@ pub fn debug_cohesion(
 
         let val = measure_coherence(ent, &boids, neighbours, rules.perception_range);
 
-      //  lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::GREEN);
+        //  lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::GREEN);
     }
 }
 
@@ -115,7 +118,7 @@ pub fn debug_separation(
     query: Query<(Entity, &Transform, &BoidsSeparation, &DebugBoid)>,
     boids: Query<&Transform>,
     rules: Res<BoidsRules>,
-   // mut lines: ResMut<DebugLines>,
+    // mut lines: ResMut<DebugLines>,
     map: Res<Spatial>,
 ) {
     for (ent, tf, _, _) in &query {
@@ -126,7 +129,7 @@ pub fn debug_separation(
 
         let val = measure_separation(ent, &boids, neighbours, rules.perception_range);
 
-    //    lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::ANTIQUE_WHITE);
+        //    lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::ANTIQUE_WHITE);
     }
 }
 
@@ -135,7 +138,7 @@ fn debug_alignment(
     list: Query<(&Transform, &Velocity)>,
     rules: Res<BoidsRules>,
     map: Res<Spatial>,
-   // mut lines: ResMut<DebugLines>,
+    // mut lines: ResMut<DebugLines>,
 ) {
     for (ent, tf, _, _, debug_boid) in query.iter() {
         // Display only for debug_cohesion enabled boids
@@ -148,7 +151,7 @@ fn debug_alignment(
 
         let val = measure_alignment(ent, &list, neighbours, rules.perception_range);
 
-     //   lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::INDIGO);
+        //   lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::INDIGO);
     }
 }
 
@@ -163,12 +166,10 @@ pub fn mouse_track(
     }
     let (camera, camera_transform) = q_camera.single();
 
-
-
     // get the window that the camera is displaying to (or the primary window)
     let wnd = wnds.single();
 
-        /*
+    /*
         RenderTarget::Window(id) = camera.target {
         wnds.get(id).unwrap()
     } else {
@@ -207,14 +208,18 @@ pub fn debug_perception_range(
     config: Res<DebugConfig>,
     rules: Res<BoidsRules>,
 ) {
-    if !config.display_perceived { return; }
+    if !config.display_perceived {
+        return;
+    }
     for (ent, tf, debug) in query.iter() {
         if !debug.show_perception_range {
             continue;
         }
 
         for (other_ent, other_tf, mut sprite, _) in &mut list {
-            if ent == other_ent { continue; }
+            if ent == other_ent {
+                continue;
+            }
 
             sprite.color = Color::BLUE;
 
@@ -224,13 +229,9 @@ pub fn debug_perception_range(
             }
         }
     }
-
-
 }
 
-fn color_debug_boid_system(
-    mut query: Query<(&DebugBoid, &mut Sprite)>,
-) {
+fn color_debug_boid_system(mut query: Query<(&DebugBoid, &mut Sprite)>) {
     for (debug, mut sprite) in &mut query {
         sprite.color = debug.color;
     }
@@ -247,14 +248,18 @@ fn debug_tag_spatial_hash_system(
     hash: ResMut<Spatial>,
 ) {
     for (debug, tf, mut sprite) in &mut query {
-        if !debug.spatial_hash { continue; }
+        if !debug.spatial_hash {
+            continue;
+        }
 
         sprite.color = debug.color;
         let map_pos = hash.global_to_map_loc(&tf.translation, boid.perception_range);
         let values = hash.get_nearby_ent(&map_pos);
 
         for ent in values {
-            commands.entity(ent).insert(SpatialColorDebug(Color::ORANGE_RED));
+            commands
+                .entity(ent)
+                .insert(SpatialColorDebug(Color::ORANGE_RED));
         }
     }
 }

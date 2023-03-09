@@ -40,7 +40,6 @@ impl Spatial {
         return tpl;
     }
 
-
     /// Get a list of Entity that are considered nearby by the spatial hashing algorithm
     ///
     /// # Arguments
@@ -90,10 +89,7 @@ pub fn force_application_system(
     }
 }
 
-pub fn velocity_system(
-    mut query: Query<(&mut Transform, &Velocity)>,
-    time: Res<Time>,
-) {
+pub fn velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
     for (mut tf, vel) in &mut query {
         tf.translation += vel.vec * time.delta_seconds();
     }
@@ -137,7 +133,7 @@ pub fn obstacle_avoidance_system(
     mut query: Query<(Entity, &Transform, &mut ObstacleAvoidance), With<Boid>>,
     rules: Res<BoidsRules>,
     rapier: Res<RapierContext>,
-   // mut lines: ResMut<DebugLines>,
+    // mut lines: ResMut<DebugLines>,
 ) {
     for (_, tf, mut avoid) in query.iter_mut() {
         let entities = find_obstacles_in_range(&rapier, rules.perception_range, tf.translation);
@@ -145,11 +141,10 @@ pub fn obstacle_avoidance_system(
 
         for e in entities {
             let pt = find_nearest_point_on_collider(&rapier, tf.translation.truncate(), e);
-          //  lines.line_colored(tf.translation, vec3(pt.x, pt.y, 0.0), 0.0, Color::RED);
+            //  lines.line_colored(tf.translation, vec3(pt.x, pt.y, 0.0), 0.0, Color::RED);
         }
     }
 }
-
 
 /// Finds all obstacles in perception range using an intersection with shape in rapier
 ///
@@ -169,11 +164,10 @@ fn find_obstacles_in_range(
     let filter = QueryFilter::default();
     let mut entities = Vec::new();
 
-    context.intersections_with_shape(
-        location.truncate(), Rot::ZERO, &shape, filter, |entity| {
-            entities.push(entity);
-            true // Continue searching for other colliders
-        });
+    context.intersections_with_shape(location.truncate(), Rot::ZERO, &shape, filter, |entity| {
+        entities.push(entity);
+        true // Continue searching for other colliders
+    });
     return entities;
 }
 
@@ -226,4 +220,3 @@ fn find_nearest_point_on_collider(
     let (_, pp) = context.project_point(from_position, true, filter).unwrap();
     return pp.point;
 }
-

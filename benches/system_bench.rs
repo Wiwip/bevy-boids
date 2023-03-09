@@ -9,7 +9,7 @@ pub struct Benchmark(World, Box<dyn System<In = (), Out = ()>>);
 impl Benchmark {
     pub fn new() -> Self {
         let mut world = World::new();
-        let mut rng = rand:: thread_rng();
+        let mut rng = rand::thread_rng();
 
         world.insert_resource(BoidsRules {
             max_force: 12.0,
@@ -20,7 +20,11 @@ impl Benchmark {
         for _ in 0..1_000 {
             world.spawn((
                 Transform {
-                    translation: vec3(rng.gen_range(-1000.0..1000.0), rng.gen_range(-1000.0..1000.0), 0.0),
+                    translation: vec3(
+                        rng.gen_range(-1000.0..1000.0),
+                        rng.gen_range(-1000.0..1000.0),
+                        0.0,
+                    ),
                     rotation: Default::default(),
                     scale: Default::default(),
                 },

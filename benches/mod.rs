@@ -1,12 +1,10 @@
-use criterion::{Criterion, criterion_group, criterion_main};
+use criterion::{criterion_group, criterion_main, Criterion};
 
 mod coherence_bench;
 mod system_bench;
 
 criterion_main!(benches);
-criterion_group!(benches,
-    iterator_tests,
-);
+criterion_group!(benches, iterator_tests,);
 
 pub fn iterator_tests(c: &mut Criterion) {
     let mut bench = coherence_bench::Benchmark::new();
