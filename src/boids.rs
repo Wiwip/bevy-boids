@@ -1,7 +1,7 @@
 use std::vec::Vec;
 
 use bevy::prelude::*;
-use bevy_inspector_egui::Inspectable;
+use bevy_inspector_egui::prelude::*;
 use rand_distr::num_traits::{Pow, pow};
 
 use crate::physics::{Acceleration, force_application_system, velocity_system, Spatial, Velocity, ObstacleAvoidance};
@@ -11,32 +11,28 @@ pub struct BoidsSimulation;
 
 impl Plugin for BoidsSimulation {
     fn build(&self, app: &mut App) {
-         app.add_system_set(
-                SystemSet::new()
-                    .label(BoidStage::ForceCalculation)
-                    .with_system(separation_system)
-                    .with_system(alignment_system)
-                    .with_system(coherence_system)
-                    .with_system(desired_velocity_system)
-                    .with_system(boundaries_system)
-            );
-             app.add_system_set(
-                SystemSet::new()
-                    .label(BoidStage::ForceIntegration)
-                    .after(BoidStage::ForceCalculation)
-                    .with_system(boid_integrator_system::<BoidsCoherence>)
-                    .with_system(boid_integrator_system::<BoidsAlignment>)
-                    .with_system(boid_integrator_system::<BoidsSeparation>)
-                    .with_system(boid_integrator_system::<WorldBoundForce>)
-                    .with_system(boid_integrator_system::<DesiredVelocity>)
-                    .with_system(boid_integrator_system::<ObstacleAvoidance>)
-            );
-            app.add_system(force_application_system
-                .after(BoidStage::ForceIntegration)
-            )
-                .add_system(velocity_system
-                        .after(force_application_system)
-                );
+        app.add_systems(
+            (separation_system, alignment_system, coherence_system, desired_velocity_system, boundaries_system)
+                .in_set(BoidStage::ForceCalculation)
+        );
+
+        app.add_systems(
+            (boid_integrator_system::<BoidsCoherence>,
+             boid_integrator_system::<BoidsAlignment>,
+             boid_integrator_system::<BoidsSeparation>,
+             boid_integrator_system::<WorldBoundForce>,
+             boid_integrator_system::<DesiredVelocity>,
+             boid_integrator_system::<ObstacleAvoidance>)
+                .in_set(BoidStage::ForceIntegration)
+        );
+        app.add_systems(
+            (force_application_system, velocity_system)
+                .chain()
+                .in_set(BoidStage::ForceApplication)
+        );
+
+        app.configure_set(BoidStage::ForceCalculation.before(BoidStage::ForceIntegration));
+        app.configure_set(BoidStage::ForceIntegration.before(BoidStage::ForceApplication));
     }
 }
 
@@ -69,7 +65,7 @@ impl Default for BoidBundle {
     }
 }
 
-#[derive(Resource, Inspectable, Default)]
+#[derive(Resource, Default)]
 pub struct BoidsRules {
     pub perception_range: f32,
     pub desired_separation: f32,
@@ -155,7 +151,7 @@ impl BoidForce for WorldBoundForce {
     }
 }
 
-#[derive(SystemLabel)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum BoidStage {
     ForceCalculation,
     ForceIntegration,

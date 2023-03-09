@@ -2,10 +2,8 @@ extern crate bevy;
 
 use std::f32;
 use std::f32::consts::PI;
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::math::{ivec3, vec2};
 use bevy::prelude::*;
-use bevy_inspector_egui::{InspectorPlugin};
 use bevy_prototype_debug_lines::*;
 use rand::Rng;
 use flock_sim::boids::{BoidBundle, BoidsRules, BoidsSimulation, GameRules};
@@ -18,10 +16,10 @@ fn main() {
     App::new()
         .add_startup_system(setup)
         .add_plugins(DefaultPlugins)
-        .add_plugin(DebugLinesPlugin::default())
+       // .add_plugin(DebugLinesPlugin::default())
         .add_plugin(BoidsDebugTools)
         .add_plugin(BoidsSimulation)
-        .add_plugin(InspectorPlugin::<BoidsRules>::new())
+      //  .add_plugin(InspectorPlugin::<BoidsRules>::new())
 
         // Rapier 2D
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))

@@ -1,8 +1,8 @@
 use std::ops::Mul;
 
+use bevy::ecs::entity::Entity;
 use bevy::math::{ivec3, vec3};
 use bevy::prelude::*;
-use bevy::ecs::entity::Entity;
 use bevy::reflect::Array;
 use bevy::utils::hashbrown::hash_map::Entry;
 use bevy::utils::HashMap;
@@ -137,7 +137,7 @@ pub fn obstacle_avoidance_system(
     mut query: Query<(Entity, &Transform, &mut ObstacleAvoidance), With<Boid>>,
     rules: Res<BoidsRules>,
     rapier: Res<RapierContext>,
-    mut lines: ResMut<DebugLines>,
+   // mut lines: ResMut<DebugLines>,
 ) {
     for (_, tf, mut avoid) in query.iter_mut() {
         let entities = find_obstacles_in_range(&rapier, rules.perception_range, tf.translation);
@@ -145,7 +145,7 @@ pub fn obstacle_avoidance_system(
 
         for e in entities {
             let pt = find_nearest_point_on_collider(&rapier, tf.translation.truncate(), e);
-            lines.line_colored(tf.translation, vec3(pt.x, pt.y, 0.0), 0.0, Color::RED);
+          //  lines.line_colored(tf.translation, vec3(pt.x, pt.y, 0.0), 0.0, Color::RED);
         }
     }
 }
@@ -163,7 +163,7 @@ pub fn obstacle_avoidance_system(
 fn find_obstacles_in_range(
     context: &Res<RapierContext>,
     perception: f32,
-    location: Vec3
+    location: Vec3,
 ) -> Vec<Entity> {
     let shape = Collider::ball(perception);
     let filter = QueryFilter::default();
