@@ -1,12 +1,12 @@
-use crate::boids::{
-    measure_alignment, measure_coherence, measure_separation, Boid, BoidStage, BoidsAlignment,
-    BoidsCoherence, BoidsRules, BoidsSeparation, GameRules, WorldBoundForce,
-};
-use crate::physics::{Spatial, Velocity};
 use bevy::math::vec3;
 use bevy::prelude::*;
-use bevy_inspector_egui::prelude::*;
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
+use crate::boid;
+use crate::boid::Boid;
+
+use crate::flock::{BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, BoidStage, GameArea, measure_alignment, measure_coherence, measure_separation, WorldBoundForce};
+
+use crate::physics::{Spatial, Velocity};
 
 #[derive(Component, Default)]
 pub struct DebugBoid {
@@ -70,26 +70,27 @@ impl Plugin for BoidsDebugTools {
 pub fn debug_world_bounds(
     query: Query<(&Transform, &WorldBoundForce, &DebugBoid)>,
     //mut lines: ResMut<DebugLines>,
-    rules: Res<GameRules>,
+    rules: Res<GameArea>,
     config: Res<DebugConfig>,
 ) {
     if !config.display_bound {
         return;
     }
 
-    let start = vec3(rules.left, rules.top, 0.0);
+   /* let start = vec3(rules.left, rules.top, 0.0);
     let end = vec3(rules.right, rules.top, 0.0);
     let duration = 0.0; // Duration of 0 will show the line for 1 frame.
-                        //  lines.line_colored(start, end, duration, Color::BLACK);
+    //  lines.line_colored(start, end, duration, Color::BLACK);
 
     let start = vec3(rules.left, rules.bottom, 0.0);
     let end = vec3(rules.right, rules.bottom, 0.0);
     let duration = 0.0; // Duration of 0 will show the line for 1 frame.
-                        //  lines.line_colored(start, end, duration, Color::BLACK);
+    //  lines.line_colored(start, end, duration, Color::BLACK);
 
     for (tf, bound, _) in query.iter() {
         //    lines.line_colored(tf.translation, tf.translation + bound.force, duration, Color::CYAN);
     }
+    */
 }
 
 pub fn debug_cohesion(

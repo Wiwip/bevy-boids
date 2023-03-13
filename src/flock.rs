@@ -1,116 +1,44 @@
+use std::f32::consts::PI;
 use std::vec::Vec;
+use bevy::math::{vec2, vec3};
 
 use bevy::prelude::*;
-use bevy_inspector_egui::prelude::*;
+use rand::Rng;
 use rand_distr::num_traits::{pow, Pow};
+use crate::{BaseFlockBundle};
+use crate::boid::{Boid, Perception};
 
 use crate::physics::{
-    force_application_system, velocity_system, Acceleration, ObstacleAvoidance, Spatial, Velocity,
+    Acceleration, Spatial, Velocity,
 };
 
-pub struct BoidsSimulation;
-
-impl Plugin for BoidsSimulation {
-    fn build(&self, app: &mut App) {
-        app.add_systems(
-            (
-                separation_system,
-                alignment_system,
-                coherence_system,
-                desired_velocity_system,
-                boundaries_system,
-            )
-                .in_set(BoidStage::ForceCalculation),
-        );
-
-        app.add_systems(
-            (
-                boid_integrator_system::<BoidsCoherence>,
-                boid_integrator_system::<BoidsAlignment>,
-                boid_integrator_system::<BoidsSeparation>,
-                boid_integrator_system::<WorldBoundForce>,
-                boid_integrator_system::<DesiredVelocity>,
-                boid_integrator_system::<ObstacleAvoidance>,
-            )
-                .in_set(BoidStage::ForceIntegration),
-        );
-        app.add_systems(
-            (force_application_system, velocity_system)
-                .chain()
-                .in_set(BoidStage::ForceApplication),
-        );
-
-        app.configure_set(BoidStage::ForceCalculation.before(BoidStage::ForceIntegration));
-        app.configure_set(BoidStage::ForceIntegration.before(BoidStage::ForceApplication));
-    }
-}
-
-#[derive(Bundle)]
-pub struct BoidBundle {
-    pub boid: Boid,
-    pub vel: Velocity,
-    pub acc: Acceleration,
-    pub sp: SpriteBundle,
-    pub coh: BoidsCoherence,
-    pub sep: BoidsSeparation,
-    pub ali: BoidsAlignment,
-    pub desi: DesiredVelocity,
-    pub bounds: WorldBoundForce,
-}
-
-impl Default for BoidBundle {
-    fn default() -> Self {
-        Self {
-            boid: Boid,
-            vel: Velocity::default(),
-            acc: Acceleration::default(),
-            sp: Default::default(),
-            coh: BoidsCoherence::default(),
-            sep: BoidsSeparation::default(),
-            ali: BoidsAlignment::default(),
-            desi: DesiredVelocity::default(),
-            bounds: WorldBoundForce::default(),
-        }
-    }
-}
 
 #[derive(Resource, Default)]
 pub struct BoidsRules {
     pub perception_range: f32,
     pub desired_separation: f32,
-    pub coherence_factor: f32,
-    pub alignment_factor: f32,
-    pub separation_factor: f32,
     pub desired_speed: f32,
-    pub stay_inside: f32,
     pub max_force: f32,
     pub max_velocity: f32,
-    pub velocity_match_factor: f32,
 }
 
 #[derive(Resource)]
-pub struct GameRules {
-    pub left: f32,
-    pub right: f32,
-    pub top: f32,
-    pub bottom: f32,
-    pub range: f32,
-    pub particle_count: u32,
+pub struct GameArea {
+    pub area: Rect,
 }
 
-pub trait BoidForce {
+pub trait Steering {
     fn get_force(&self) -> Vec3;
 }
 
-#[derive(Component)]
-pub struct Boid;
 
 #[derive(Component, Default)]
 pub struct BoidsCoherence {
+    pub factor: f32,
     pub force: Vec3,
 }
 
-impl BoidForce for BoidsCoherence {
+impl Steering for BoidsCoherence {
     fn get_force(&self) -> Vec3 {
         return self.force;
     }
@@ -118,10 +46,11 @@ impl BoidForce for BoidsCoherence {
 
 #[derive(Component, Default)]
 pub struct BoidsSeparation {
+    pub factor: f32,
     pub force: Vec3,
 }
 
-impl BoidForce for BoidsSeparation {
+impl Steering for BoidsSeparation {
     fn get_force(&self) -> Vec3 {
         return self.force;
     }
@@ -129,10 +58,11 @@ impl BoidForce for BoidsSeparation {
 
 #[derive(Component, Default)]
 pub struct BoidsAlignment {
+    pub factor: f32,
     pub force: Vec3,
 }
 
-impl BoidForce for BoidsAlignment {
+impl Steering for BoidsAlignment {
     fn get_force(&self) -> Vec3 {
         return self.force;
     }
@@ -141,9 +71,10 @@ impl BoidForce for BoidsAlignment {
 #[derive(Component, Default)]
 pub struct DesiredVelocity {
     pub force: Vec3,
+    pub factor: f32,
 }
 
-impl BoidForce for DesiredVelocity {
+impl Steering for DesiredVelocity {
     fn get_force(&self) -> Vec3 {
         return self.force;
     }
@@ -151,10 +82,11 @@ impl BoidForce for DesiredVelocity {
 
 #[derive(Component, Default)]
 pub struct WorldBoundForce {
+    pub factor: f32,
     pub force: Vec3,
 }
 
-impl BoidForce for WorldBoundForce {
+impl Steering for WorldBoundForce {
     fn get_force(&self) -> Vec3 {
         return self.force;
     }
@@ -167,24 +99,107 @@ pub enum BoidStage {
     ForceApplication,
 }
 
-pub fn boid_integrator_system<T: Component + BoidForce>(mut query: Query<(&mut Acceleration, &T)>) {
+pub fn boid_integrator_system<T: Component + Steering>(mut query: Query<(&mut Acceleration, &T)>) {
     for (mut acc, cp) in &mut query {
         acc.vec += cp.get_force()
     }
 }
 
+pub fn new(
+    count: u32,
+    rect: Rect,
+    perception: f32
+) -> Vec<BaseFlockBundle> {
+    let mut flock = Vec::new();
+
+    for _ in 0..count {
+        let bdl = BaseFlockBundle {
+            boid: Boid,
+            perception: Perception { range: perception },
+            vel: Velocity {
+                vec: random_direction(),
+            },
+            acc: Default::default(),
+            sp: SpriteBundle {
+                sprite: Sprite {
+                    custom_size: Some(Vec2::new(6.0, 2.0)),
+                    color: Color::BLACK,
+                    ..default()
+                },
+                transform: random_transform(rect),
+                visibility: Visibility::Visible,
+                ..default()
+            },
+            desi: DesiredVelocity {
+                factor: 1.0,
+                ..default()
+            },
+            coh: BoidsCoherence {
+                factor: 8.0,
+                ..default()
+            },
+            sep: BoidsSeparation {
+                factor: 8.0,
+                ..default()
+            },
+            ali: BoidsAlignment {
+                factor: 8.0,
+                ..default()
+            },
+            bounds: WorldBoundForce {
+                factor: 12.0,
+                ..default() },
+            avoid: Default::default(),
+        };
+
+        flock.push(bdl);
+
+    }
+    flock
+}
+
+fn random_transform(rect: Rect) -> Transform {
+    let mut rng = rand::thread_rng();
+
+    // Get random position within provided bounds
+    let pos = vec3(
+        rng.gen_range(rect.min.x .. rect.max.x),
+        rng.gen_range(rect.min.y .. rect.max.y),
+        0.0
+    );
+
+    // Get random rotation between 0 and 360 degrees
+    let rot = Quat::from_rotation_z(rng.gen_range(0.0..PI*2.0));
+
+    // Create and return transform component
+    Transform {
+        translation: pos,
+        ..default()
+    }
+}
+
+fn random_direction() -> Vec3 {
+    let mut rng = rand::thread_rng();
+
+    let pos = vec3(
+        rng.gen_range(-1.0 .. 1.0),
+        rng.gen_range(-1.0 .. 1.0),
+        0.0
+    );
+
+    pos
+}
+
 pub fn coherence_system(
-    mut query: Query<(Entity, &Transform, &mut BoidsCoherence)>,
+    mut query: Query<(Entity, &Transform, &Perception, &mut BoidsCoherence)>,
     boids: Query<&Transform>,
-    rules: Res<BoidsRules>,
     map: Res<Spatial>,
 ) {
-    for (ent, tf, mut coh) in &mut query {
-        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
+    for (ent, tf, per, mut coh) in &mut query {
+        let map_coord = map.global_to_map_loc(&tf.translation, per.range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        coh.force = measure_coherence(ent, &boids, neighbours, rules.perception_range)
-            * rules.coherence_factor;
+        coh.force = measure_coherence(ent, &boids, neighbours, per.range) * coh.factor;
     }
 }
 
@@ -232,8 +247,7 @@ pub fn separation_system(
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        sep.force = measure_separation(ent, &boids, neighbours, rules.desired_separation)
-            * rules.separation_factor;
+        sep.force = measure_separation(ent, &boids, neighbours, rules.desired_separation) * sep.factor;
     }
 }
 
@@ -275,8 +289,7 @@ pub fn alignment_system(
         let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
         let neighbours = map.get_nearby_ent(&map_coord);
 
-        ali.force = measure_alignment(ent, &boids, neighbours, rules.perception_range)
-            * rules.alignment_factor;
+        ali.force = measure_alignment(ent, &boids, neighbours, rules.perception_range) * ali.factor;
     }
 }
 
@@ -321,37 +334,34 @@ pub fn desired_velocity_system(
         let unit_vel = vel.vec / vel.vec.length();
 
         if !unit_vel.is_nan() {
-            des.force = unit_vel * delta_vel * rules.velocity_match_factor;
+            des.force = unit_vel * delta_vel * des.factor;
         }
     }
 }
 
 pub fn boundaries_system(
     mut query: Query<(&Transform, &mut WorldBoundForce)>,
-    rules: Res<GameRules>,
-    boids: Res<BoidsRules>,
+    rules: Res<GameArea>,
 ) {
     for (tf, mut bound) in &mut query {
-        if tf.translation.x >= rules.right {
+        if tf.translation.x >= rules.area.max.x {
             // Right X bound
-            let delta = rules.right - tf.translation.x;
-            bound.force.x = delta * boids.stay_inside;
-        } else if tf.translation.x <= rules.left {
+            let delta = rules.area.max.x - tf.translation.x;
+            bound.force.x = delta * bound.factor;
+        } else if tf.translation.x <= rules.area.min.x {
             // Left X bound
-            let delta = rules.left - tf.translation.x;
-            bound.force.x = delta * boids.stay_inside;
+            let delta = rules.area.min.x - tf.translation.x;
+            bound.force.x = delta * bound.factor;
         }
 
-        if tf.translation.y <= rules.bottom {
+        if tf.translation.y <= rules.area.min.y { //.bottom {
             // Lower Y bound
-            let delta = rules.bottom - tf.translation.y;
-            bound.force.y = delta * boids.stay_inside;
-        } else if tf.translation.y >= rules.top {
+            let delta = rules.area.min.y - tf.translation.y;
+            bound.force.y = delta * bound.factor;
+        } else if tf.translation.y >= rules.area.max.y { //.top {
             // Top Y bound
-            let delta = rules.top - tf.translation.y;
-            bound.force.y = delta * boids.stay_inside;
+            let delta = rules.area.max.y - tf.translation.y;
+            bound.force.y = delta * bound.factor;
         }
-
-        //bound.force = -tf.translation / rules.range * boids.stay_inside;
     }
 }

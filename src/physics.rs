@@ -6,11 +6,11 @@ use bevy::prelude::*;
 use bevy::reflect::Array;
 use bevy::utils::hashbrown::hash_map::Entry;
 use bevy::utils::HashMap;
-use bevy_prototype_debug_lines::DebugLines;
 use bevy_rapier2d::prelude::*;
 use rand_distr::weighted_alias::AliasableWeight;
+use crate::boid::Boid;
 
-use crate::boids::{Boid, BoidForce, BoidsRules};
+use crate::flock::{Steering, BoidsRules};
 use crate::velocity_angle;
 
 #[derive(Component, Copy, Clone, Default)]
@@ -123,7 +123,7 @@ pub struct ObstacleAvoidance {
     pub force: Vec3,
 }
 
-impl BoidForce for ObstacleAvoidance {
+impl Steering for ObstacleAvoidance {
     fn get_force(&self) -> Vec3 {
         return self.force;
     }

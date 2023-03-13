@@ -1,6 +1,6 @@
 use bevy::math::vec3;
 use bevy::prelude::*;
-use flock_sim::boids::{measure_coherence, Boid, BoidsCoherence, BoidsRules, Movement};
+use flock_sim::boid::{measure_coherence, Boid, BoidsCoherence, BoidsRules, Movement};
 use flock_sim::physics::{spatial_hash_system, Spatial};
 use rand::Rng;
 

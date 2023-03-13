@@ -2,25 +2,26 @@ extern crate bevy;
 
 use bevy::math::{ivec3, vec2};
 use bevy::prelude::*;
-use bevy_prototype_debug_lines::*;
 use bevy_rapier2d::prelude::*;
-use flock_sim::boids::{BoidBundle, BoidsRules, BoidsSimulation, GameRules};
-use flock_sim::debug_systems::{BoidsDebugTools, DebugBoid};
-use flock_sim::physics::{
+use bevy_flock::debug_systems::DebugBoid;
+use bevy_flock::physics::{
     obstacle_avoidance_system, rotation_system, spatial_hash_system, ObstacleAvoidance, Spatial,
     Velocity,
 };
 use rand::Rng;
 use std::f32;
 use std::f32::consts::PI;
+use bevy_flock::{BaseFlockBundle, flock, FlockingPlugin};
+use bevy_flock::flock::{BoidsRules, GameArea};
+
 
 fn main() {
     App::new()
         .add_startup_system(setup)
+        //.insert_resource(ClearColor(Color::rgb(0.8, 0.4, 0.2))
         .add_plugins(DefaultPlugins)
         // .add_plugin(DebugLinesPlugin::default())
-        .add_plugin(BoidsDebugTools)
-        .add_plugin(BoidsSimulation)
+        .add_plugin(FlockingPlugin)
         //  .add_plugin(InspectorPlugin::<BoidsRules>::new())
         // Rapier 2D
         .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
@@ -32,25 +33,20 @@ fn main() {
         // FPS Debug
         //.add_plugin(LogDiagnosticsPlugin::default())
         //.add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .insert_resource(GameRules {
-            left: -1600.0 / 2.0,
-            right: 1600.0 / 2.0,
-            top: 800.0 / 2.0,
-            bottom: -800.0 / 2.0,
-            range: 800.0,
-            particle_count: 2000,
+        .insert_resource(GameArea {
+            area: Rect::from_center_half_size(Vec2::ZERO, vec2(700.0, 400.0))
         })
         .insert_resource(BoidsRules {
             perception_range: 32.0,
             desired_separation: 20.0,
-            coherence_factor: 8.0,
-            alignment_factor: 8.0,
-            separation_factor: 8.0,
-            stay_inside: 10.0,
+       //     coherence_factor: 8.0,
+       //     alignment_factor: 8.0,
+       //     separation_factor: 8.0,
+        //    stay_inside: 10.0,
             desired_speed: 175.0,
             max_force: 1000.0,
             max_velocity: 225.0,
-            velocity_match_factor: 2.00,
+         //   velocity_match_factor: 2.00,
         })
         .insert_resource(Spatial {
             map: Default::default(),
@@ -76,72 +72,11 @@ fn main() {
 ///
 /// Setup the world
 ///
-fn setup(mut commands: Commands, rules: Res<GameRules>) {
-    let mut rng = rand::thread_rng();
-
+fn setup(mut commands: Commands, rules: Res<GameArea>) {
     commands.spawn(Camera2dBundle::default());
 
-    let vectors = get_random_boids(rules.particle_count);
-    for velocity in vectors {
-        let position = vec2(
-            rng.gen_range(rules.left..rules.right),
-            rng.gen_range(rules.bottom..rules.top),
-        );
-        let mut sprite_bundle = build_sprite_bundle(position);
-        sprite_bundle.transform.rotation =
-            Quat::from_rotation_z(f32::atan2(velocity.vec.y, velocity.vec.x));
-
-        commands.spawn((
-            BoidBundle {
-                vel: velocity,
-                sp: sprite_bundle,
-                ..default()
-            },
-            ObstacleAvoidance::default(),
-        ));
-    }
-
-    spawn_debug_particle(
-        &mut commands,
-        vec2(400.0, 0.0),
-        DebugBoid {
-            show_separation: true,
-            color: Color::RED,
-            ..default()
-        },
-    );
-    spawn_debug_particle(
-        &mut commands,
-        vec2(-400.0, 0.0),
-        DebugBoid {
-            show_cohesion: true,
-            color: Color::GREEN,
-            ..default()
-        },
-    );
-    spawn_debug_particle(
-        &mut commands,
-        vec2(0.0, 200.0),
-        DebugBoid {
-            show_alignment: true,
-            color: Color::VIOLET,
-            ..default()
-        },
-    );
-    spawn_debug_particle(
-        &mut commands,
-        vec2(0.0, 0.0),
-        DebugBoid {
-            show_cohesion: true,
-            show_separation: true,
-            show_alignment: true,
-            track_mouse: true,
-            show_perception_range: true,
-            spatial_hash: true,
-            color: Color::BLACK,
-            ..default()
-        },
-    );
+    let list = flock::new(1000, rules.area, 32.0);
+    commands.spawn_batch(list);
 
     commands
         .spawn(RigidBody::Fixed)
@@ -160,43 +95,4 @@ fn setup(mut commands: Commands, rules: Res<GameRules>) {
         .insert(TransformBundle::from(Transform::from_xyz(
             -200.0, -150.0, 0.0,
         )));
-}
-
-fn spawn_debug_particle(commands: &mut Commands, position: Vec2, debug_bundle: impl Bundle) {
-    let sprite = build_sprite_bundle(position);
-
-    commands.spawn((
-        BoidBundle {
-            sp: sprite,
-            ..default()
-        },
-        debug_bundle,
-    ));
-}
-
-fn build_sprite_bundle(location: Vec2) -> SpriteBundle {
-    let mut sprite_bundle = SpriteBundle {
-        sprite: Sprite {
-            custom_size: Some(Vec2::new(6.0, 2.0)),
-            color: Color::BLUE,
-            ..default()
-        },
-        ..default()
-    };
-    sprite_bundle.transform.translation.x = location.x;
-    sprite_bundle.transform.translation.y = location.y;
-    return sprite_bundle;
-}
-
-fn get_random_boids(count: u32) -> Vec<Velocity> {
-    let mut rng = rand::thread_rng();
-    let mut particles: Vec<Velocity> = Vec::new();
-
-    for _ in 0..count {
-        let angle = Quat::from_rotation_z(rng.gen_range(0.0..2.0 * PI));
-        let velocity = angle.mul_vec3(Vec3::X) * 75.0;
-        let _ = &particles.push(Velocity { vec: velocity });
-    }
-
-    particles
 }
