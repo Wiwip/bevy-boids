@@ -34,7 +34,7 @@ fn main() {
         //.add_plugin(LogDiagnosticsPlugin::default())
         //.add_plugin(FrameTimeDiagnosticsPlugin::default())
         .insert_resource(GameArea {
-            area: Rect::from_center_half_size(Vec2::ZERO, vec2(700.0, 400.0))
+            area: Rect::from_center_half_size(Vec2::ZERO, vec2(1000.0, 600.0))
         })
         .insert_resource(BoidsRules {
             perception_range: 32.0,
@@ -75,7 +75,7 @@ fn main() {
 fn setup(mut commands: Commands, rules: Res<GameArea>) {
     commands.spawn(Camera2dBundle::default());
 
-    let list = flock::new(1000, rules.area, 32.0);
+    let list = flock::new(5000, rules.area, 32.0);
     commands.spawn_batch(list);
 
     commands

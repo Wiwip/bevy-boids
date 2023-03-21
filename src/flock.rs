@@ -31,7 +31,6 @@ pub trait Steering {
     fn get_force(&self) -> Vec3;
 }
 
-
 #[derive(Component, Default)]
 pub struct BoidsCoherence {
     pub factor: f32,

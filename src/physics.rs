@@ -13,6 +13,10 @@ use crate::boid::Boid;
 use crate::flock::{Steering, BoidsRules};
 use crate::velocity_angle;
 
+struct SteeringEvent {
+
+}
+
 #[derive(Component, Copy, Clone, Default)]
 pub struct Velocity {
     pub vec: Vec3,
