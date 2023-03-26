@@ -8,7 +8,7 @@ pub fn camera_drag(
     input: Res<Input<MouseButton>>,
     mut motion: EventReader<MouseMotion>,
 ){
-    let (c, mut tf, proj) = query.single_mut();
+    let (_, mut tf, proj) = query.single_mut();
     if input.pressed(MouseButton::Middle){
         for ev in motion.iter() {
             tf.translation.x -= ev.delta.x * proj.scale;

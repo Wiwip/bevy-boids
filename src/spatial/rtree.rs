@@ -1,7 +1,7 @@
 use bevy::math::vec3;
 use bevy::prelude::*;
 use rand_distr::num_traits::pow;
-use rstar::{AABB, Point, RTree};
+use rstar::{Point, RTree};
 use crate::spatial::SpatialPartition;
 
 #[derive(Clone, PartialEq, Debug)]
@@ -48,16 +48,6 @@ pub struct RTreeStorage {
 
 impl SpatialPartition for RTreeStorage {
     fn get_nearby_ent(&self, origin: &Vec3, perception: f32) -> Vec<Entity> {
-        let range_check = AABB::from_corners(
-            RTreeEntity {
-                entity: Entity::PLACEHOLDER,
-                vec: vec3(origin.x - perception, origin.y - perception, 0.0),
-            },
-            RTreeEntity {
-                entity: Entity::PLACEHOLDER,
-                vec: vec3(origin.x + perception, origin.y + perception, 0.0),
-            });
-
         let elements = self.tree.locate_within_distance(
             RTreeEntity{
                 entity: Entity::PLACEHOLDER,
