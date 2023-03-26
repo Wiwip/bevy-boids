@@ -1,9 +1,9 @@
 use crate::boid::{Boid, Perception};
 use bevy::math::vec3;
 use bevy::prelude::*;
-use bevy_inspector_egui::quick::ResourceInspectorPlugin;
+use crate::BoidStage;
 
-use crate::flock::{BoidStage, BoidsAlignment, BoidsCoherence, BoidsSeparation};
+use crate::flock::{BoidsAlignment, BoidsCoherence, BoidsSeparation};
 use crate::physics::Velocity;
 use crate::spatial::SpatialRes;
 
@@ -49,7 +49,7 @@ impl Plugin for BoidsDebugTools {
                 .after(BoidStage::ForceIntegration),
         )
         .add_system(reset_color_system.before(debug_tag_spatial_hash_system))
-        .add_plugin(ResourceInspectorPlugin::<DebugConfig>::new())
+        //.add_plugin(ResourceInspectorPlugin::<DebugConfig>::new())
         .insert_resource(DebugConfig {
             debug_location: vec3(-500.0, 400.0, 0.0),
             debug_vector_mag: 1.0,

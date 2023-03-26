@@ -1,3 +1,4 @@
+use std::sync::{Arc, LockResult, RwLock};
 use bevy::math::vec3;
 use std::vec::Vec;
 
@@ -11,7 +12,6 @@ use crate::spatial::SpatialRes;
 
 #[derive(Resource, Default)]
 pub struct BoidsRules {
-    pub desired_separation: f32,
     pub desired_speed: f32,
     pub max_force: f32,
     pub max_velocity: f32,
@@ -22,83 +22,51 @@ pub struct GameArea {
     pub area: Rect,
 }
 
-pub trait Steering {
-    fn get_force(&self) -> Vec3;
-}
-
 #[derive(Component, Default)]
 pub struct BoidsCoherence {
     pub factor: f32,
-    pub force: Vec3,
-}
-
-impl Steering for BoidsCoherence {
-    fn get_force(&self) -> Vec3 {
-        return self.force;
-    }
 }
 
 #[derive(Component, Default)]
 pub struct BoidsSeparation {
     pub factor: f32,
-    pub force: Vec3,
-}
-
-impl Steering for BoidsSeparation {
-    fn get_force(&self) -> Vec3 {
-        return self.force;
-    }
+    pub distance: f32,
 }
 
 #[derive(Component, Default)]
 pub struct BoidsAlignment {
     pub factor: f32,
-    pub force: Vec3,
-}
-
-impl Steering for BoidsAlignment {
-    fn get_force(&self) -> Vec3 {
-        return self.force;
-    }
 }
 
 #[derive(Component, Default)]
 pub struct DesiredVelocity {
-    pub force: Vec3,
     pub factor: f32,
-}
-
-impl Steering for DesiredVelocity {
-    fn get_force(&self) -> Vec3 {
-        return self.force;
-    }
 }
 
 #[derive(Component, Default)]
 pub struct WorldBoundForce {
     pub factor: f32,
-    pub force: Vec3,
 }
 
-impl Steering for WorldBoundForce {
-    fn get_force(&self) -> Vec3 {
-        return self.force;
+#[derive(Component, Default)]
+pub struct SteeringPressure {
+    pub lock: RwLock<Vec3>,
+}
+
+pub fn boid_integrator_system(
+    mut query: Query<(&mut Acceleration, &SteeringPressure)>
+) {
+    for (mut acc, steer) in &mut query {
+        let force = steer.lock.read().unwrap();
+        acc.vec += *force;
+        drop(force);
+
+        let mut force = steer.lock.write().unwrap();
+        *force = Vec3::ZERO;
+        drop(force);
     }
 }
-
-#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
-pub enum BoidStage {
-    ForceCalculation,
-    ForceIntegration,
-    ForceApplication,
-}
-
-pub fn boid_integrator_system<T: Component + Steering>(mut query: Query<(&mut Acceleration, &T)>) {
-    for (mut acc, cp) in &mut query {
-        acc.vec += cp.get_force()
-    }
-}
-
+/*
 pub fn force_event_integrator_system(
     mut query: Query<&mut Acceleration, With<Boid>>,
     mut events: EventReader<SteeringEvent>,
@@ -111,6 +79,7 @@ pub fn force_event_integrator_system(
         }
     }
 }
+*/
 
 pub fn new(count: u32, rect: Rect, perception: f32) -> Vec<BaseFlockBundle> {
     let mut flock = Vec::new();
@@ -135,27 +104,16 @@ pub fn new(count: u32, rect: Rect, perception: f32) -> Vec<BaseFlockBundle> {
                 visibility: Visibility::Visible,
                 ..default()
             },
-            desi: DesiredVelocity {
-                factor: 1.0,
-                ..default()
-            },
-            coh: BoidsCoherence {
-                factor: 8.0,
-                ..default()
-            },
+            desi: DesiredVelocity { factor: 1.0 },
+            coh: BoidsCoherence { factor: 8.0 },
             sep: BoidsSeparation {
-                factor: 8.0,
-                ..default()
+                factor: 4.0,
+                distance: 12.0,
             },
-            ali: BoidsAlignment {
-                factor: 8.0,
-                ..default()
-            },
-            bounds: WorldBoundForce {
-                factor: 12.0,
-                ..default()
-            },
+            ali: BoidsAlignment { factor: 8.0 },
+            bounds: WorldBoundForce { factor: 12.0 },
             avoid: ObstacleAvoidance { factor: 100.0 },
+            steer: Default::default(),
         };
 
         flock.push(bdl);
@@ -185,20 +143,22 @@ fn random_transform(rect: Rect) -> Transform {
 
 fn random_direction() -> Vec3 {
     let mut rng = rand::thread_rng();
-
     let pos = vec3(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
-
     pos
 }
 
 pub fn coherence_system(
-    mut query: Query<(Entity, &Transform, &Perception, &mut BoidsCoherence)>,
+    query: Query<(Entity, &Transform, &Perception, &BoidsCoherence, &SteeringPressure)>,
     boids: Query<&Transform>,
     map: Res<SpatialRes>,
 ) {
-    for (ent, tf, per, mut coh) in &mut query {
+    for (entity, tf, per, coh, steer) in query.iter() {
         let neighbours = map.space.get_nearby_ent(&tf.translation, per.range);
-        coh.force = measure_coherence(ent, &boids, neighbours) * coh.factor;
+        let force = measure_coherence(entity, &boids, neighbours) * coh.factor;
+
+        let mut vec = steer.lock.write().unwrap();
+        *vec += force;
+
     }
 }
 
@@ -230,33 +190,24 @@ pub fn measure_coherence(
 }
 
 pub fn separation_system(
-    query: Query<(Entity, &Transform, &BoidsSeparation)>,
+    query: Query<(Entity, &Transform, &Perception, &BoidsSeparation, &SteeringPressure)>,
     boids: Query<&Transform>,
-    mut events: EventWriter<SteeringEvent>,
-    rules: Res<BoidsRules>,
     map: Res<SpatialRes>,
 ) {
-    let mut forces = Vec::new();
-
-    for (entity, tf, sep) in query.iter() {
+    for (entity, tf, per, sep, steer) in query.iter() {
         // Use data from spatial hash instead of all boids
-        let neighbours = map
-            .space
-            .get_nearby_ent(&tf.translation, rules.desired_separation);
-        let force =
-            measure_separation(entity, &boids, neighbours, rules.desired_separation) * sep.factor;
-
-        forces.push(SteeringEvent { entity, force })
+        let neighbours = map.space.get_nearby_ent(&tf.translation, per.range);
+        let force = measure_separation(entity, &boids, neighbours, sep.distance) * sep.factor;
+        let mut vec = steer.lock.write().unwrap();
+        *vec += force;
     }
-
-    events.send_batch(forces);
 }
 
 pub fn measure_separation(
     entity: Entity,
     query: &Query<&Transform>,
     neighbours: Vec<Entity>,
-    separation: f32,
+    dist: f32,
 ) -> Vec3 {
     let mut count = 0;
     let local_tf = query.get(entity).unwrap().translation;
@@ -270,7 +221,7 @@ pub fn measure_separation(
         .map(|v| {
             count += 1;
             let sep = -1.0 * (v - local_tf);
-            sep / sep.length() * separation
+            sep / sep.length() * dist
         })
         .sum();
 
@@ -278,17 +229,18 @@ pub fn measure_separation(
 }
 
 pub fn alignment_system(
-    mut query: Query<(Entity, &Transform, &mut BoidsAlignment)>,
+    query: Query<(Entity, &Transform, &Perception, &BoidsAlignment, &SteeringPressure)>,
     boids: Query<(&Transform, &Velocity)>,
-    rules: Res<BoidsRules>,
     map: Res<SpatialRes>,
 ) {
-    for (ent, tf, mut ali) in &mut query {
-        let neighbours = map
-            .space
-            .get_nearby_ent(&tf.translation, rules.desired_separation);
-        ali.force = measure_alignment(ent, &boids, neighbours) * ali.factor;
+    for (entity, tf, per, ali, steer) in &query {
+        let neighbours = map.space.get_nearby_ent(&tf.translation, per.range);
+        let force = measure_alignment(entity, &boids, neighbours) * ali.factor;
+
+        let mut vec = steer.lock.write().unwrap();
+        *vec += force;
     }
+
 }
 
 pub fn measure_alignment(
@@ -318,44 +270,53 @@ pub fn measure_alignment(
 }
 
 pub fn desired_velocity_system(
-    mut query: Query<(&Velocity, &mut DesiredVelocity)>,
+    query: Query<(Entity, &Velocity, &DesiredVelocity, &SteeringPressure)>,
     rules: Res<BoidsRules>,
 ) {
-    for (vel, mut des) in &mut query {
+    for (entity, vel, des, steer) in &query {
         let delta_vel = rules.desired_speed - vel.vec.length();
         let unit_vel = vel.vec / vel.vec.length();
 
         if !unit_vel.is_nan() {
-            des.force = unit_vel * delta_vel * des.factor;
+            let force = unit_vel * delta_vel * des.factor;
+            let mut vec = steer.lock.write().unwrap();
+            *vec += force;
         }
     }
 }
 
 pub fn boundaries_system(
-    mut query: Query<(&Transform, &mut WorldBoundForce)>,
+    mut query: Query<(Entity, &Transform, &WorldBoundForce, &SteeringPressure)>,
     rules: Res<GameArea>,
+
 ) {
-    for (tf, mut bound) in &mut query {
+    for (entity, tf, bound, steer) in &mut query {
+        let mut force = Vec3::ZERO;
         if tf.translation.x >= rules.area.max.x {
             // Right X bound
             let delta = rules.area.max.x - tf.translation.x;
-            bound.force.x = delta * bound.factor;
+            force.x = delta * bound.factor;
         } else if tf.translation.x <= rules.area.min.x {
             // Left X bound
             let delta = rules.area.min.x - tf.translation.x;
-            bound.force.x = delta * bound.factor;
+            force.x = delta * bound.factor;
         }
 
         if tf.translation.y <= rules.area.min.y {
             //.bottom {
             // Lower Y bound
             let delta = rules.area.min.y - tf.translation.y;
-            bound.force.y = delta * bound.factor;
+            force.y = delta * bound.factor;
         } else if tf.translation.y >= rules.area.max.y {
             //.top {
             // Top Y bound
             let delta = rules.area.max.y - tf.translation.y;
-            bound.force.y = delta * bound.factor;
+            force.y = delta * bound.factor;
+        }
+
+        if force != Vec3::ZERO {
+            let mut vec = steer.lock.write().unwrap();
+            *vec += force;
         }
     }
 }

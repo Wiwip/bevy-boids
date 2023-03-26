@@ -17,13 +17,12 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(FlockingPlugin)
         .add_plugin(BoidsDebugTools)
-        .add_plugin(LogDiagnosticsPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        //.add_plugin(LogDiagnosticsPlugin::default())
+        //.add_plugin(FrameTimeDiagnosticsPlugin::default())
         .insert_resource(GameArea {
-            area: Rect::from_center_half_size(Vec2::ZERO, vec2(10000.0, 8000.0)),
+            area: Rect::from_center_half_size(Vec2::ZERO, vec2(1000.0, 800.0)),
         })
         .insert_resource(BoidsRules {
-            desired_separation: 20.0,
             desired_speed: 175.0,
             max_force: 1000.0,
             max_velocity: 225.0,
@@ -47,8 +46,6 @@ fn main() {
             }),
         })
         .add_startup_system(setup)
-        .add_system(rotation_system)
-        .add_system(spatial_hash_system)
         .add_system(camera_drag)
         .add_system(camera_zoom)
         .run();
@@ -65,7 +62,7 @@ fn setup(
     commands.spawn(Camera2dBundle::default());
 
     let perception = 32.;
-    let list = flock::new(12000, rules.area, perception);
+    let list = flock::new(2000, rules.area, perception);
     commands.spawn_batch(list);
 
     let debug = flock::new(1, rules.area, perception);

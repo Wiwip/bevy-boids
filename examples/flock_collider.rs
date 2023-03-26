@@ -29,7 +29,6 @@ fn main() {
             area: Rect::from_center_half_size(Vec2::ZERO, vec2(1500.0, 800.0)),
         })
         .insert_resource(BoidsRules {
-            desired_separation: 18.0,
             desired_speed: 150.0,
             max_force: 1000.0,
             max_velocity: 175.0,
@@ -38,7 +37,6 @@ fn main() {
             space: Box::new(RTreeStorage::default()),
         })
         .add_system(rotation_system)
-        .add_system(spatial_hash_system)
         .add_system(obstacle_avoidance_system)
         .add_system(camera_drag)
         .add_system(camera_zoom)

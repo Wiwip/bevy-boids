@@ -1,15 +1,9 @@
 extern crate core;
 
 use crate::boid::{Boid, Perception};
-use crate::flock::{
-    alignment_system, boid_integrator_system, boundaries_system, coherence_system,
-    desired_velocity_system, force_event_integrator_system, separation_system, BoidStage,
-    BoidsAlignment, BoidsCoherence, BoidsSeparation, DesiredVelocity, WorldBoundForce,
-};
-use crate::physics::{
-    force_application_system, velocity_system, Acceleration, ObstacleAvoidance, SteeringEvent,
-    Velocity,
-};
+use crate::flock::{alignment_system, boundaries_system, coherence_system, desired_velocity_system, separation_system, BoidsAlignment, BoidsCoherence, BoidsSeparation, DesiredVelocity, WorldBoundForce, SteeringPressure, boid_integrator_system};
+use crate::physics::{force_application_system, velocity_system, Acceleration, ObstacleAvoidance, Velocity, rotation_system};
+use crate::spatial::spatial_hash_system;
 use bevy::prelude::*;
 
 pub mod boid;
@@ -25,10 +19,21 @@ pub fn velocity_angle(vel: &Vec3) -> f32 {
     f32::atan2(vel.y, vel.x)
 }
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
+pub enum BoidStage {
+    ForceCalculation,
+    ForceIntegration,
+    ForceApplication,
+}
+
 pub struct FlockingPlugin;
 
 impl Plugin for FlockingPlugin {
     fn build(&self, app: &mut App) {
+        app
+            .add_system(spatial_hash_system.before(BoidStage::ForceCalculation))
+            .add_system(rotation_system);
+
         app.add_systems(
             (
                 separation_system,
@@ -42,11 +47,8 @@ impl Plugin for FlockingPlugin {
 
         app.add_systems(
             (
-                boid_integrator_system::<BoidsCoherence>,
-                boid_integrator_system::<BoidsAlignment>,
-                boid_integrator_system::<WorldBoundForce>,
-                boid_integrator_system::<DesiredVelocity>,
-                force_event_integrator_system,
+                boid_integrator_system,
+                //force_event_integrator_system,
             )
                 .in_set(BoidStage::ForceIntegration),
         );
@@ -61,7 +63,7 @@ impl Plugin for FlockingPlugin {
         app.configure_set(BoidStage::ForceIntegration.before(BoidStage::ForceApplication));
 
         //Events
-        app.add_event::<SteeringEvent>();
+       // app.add_event::<SteeringEvent>();
     }
 }
 
@@ -82,6 +84,7 @@ pub struct BaseFlockBundle {
 
     pub bounds: WorldBoundForce,
     pub avoid: ObstacleAvoidance,
+    pub steer: SteeringPressure,
 }
 
 impl Default for BaseFlockBundle {
@@ -98,6 +101,7 @@ impl Default for BaseFlockBundle {
             desi: Default::default(),
             bounds: Default::default(),
             avoid: Default::default(),
+            steer: Default::default(),
         }
     }
 }
