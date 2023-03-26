@@ -2,8 +2,8 @@ extern crate core;
 
 use bevy::prelude::*;
 use crate::boid::{Boid, Perception};
-use crate::flock::{alignment_system, boid_integrator_system, BoidsAlignment, BoidsCoherence, BoidsSeparation, BoidStage, boundaries_system, coherence_system, desired_velocity_system, DesiredVelocity, separation_system, WorldBoundForce};
-use crate::physics::{Acceleration, force_application_system, ObstacleAvoidance, Velocity, velocity_system};
+use crate::flock::{alignment_system, boid_integrator_system, BoidsAlignment, BoidsCoherence, BoidsSeparation, BoidStage, boundaries_system, coherence_system, desired_velocity_system, DesiredVelocity, force_event_integrator_system, separation_system, WorldBoundForce};
+use crate::physics::{Acceleration, force_application_system, ObstacleAvoidance, SteeringEvent, Velocity, velocity_system};
 
 pub mod boid;
 pub mod debug_systems;
@@ -11,6 +11,8 @@ pub mod physics;
 pub mod predator;
 pub mod interface;
 pub mod flock;
+pub mod spatial;
+pub mod camera_control;
 
 pub fn velocity_angle(vel: &Vec3) -> f32 {
     f32::atan2(vel.y, vel.x)
@@ -35,10 +37,9 @@ impl Plugin for FlockingPlugin {
             (
                 boid_integrator_system::<BoidsCoherence>,
                 boid_integrator_system::<BoidsAlignment>,
-                boid_integrator_system::<BoidsSeparation>,
                 boid_integrator_system::<WorldBoundForce>,
                 boid_integrator_system::<DesiredVelocity>,
-                boid_integrator_system::<ObstacleAvoidance>,
+                force_event_integrator_system,
             )
                 .in_set(BoidStage::ForceIntegration),
         );
@@ -48,8 +49,12 @@ impl Plugin for FlockingPlugin {
                 .in_set(BoidStage::ForceApplication),
         );
 
+        // Ordering of force calculation sets
         app.configure_set(BoidStage::ForceCalculation.before(BoidStage::ForceIntegration));
         app.configure_set(BoidStage::ForceIntegration.before(BoidStage::ForceApplication));
+
+        //Events
+        app.add_event::<SteeringEvent>();
     }
 }
 

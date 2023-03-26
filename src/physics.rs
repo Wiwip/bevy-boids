@@ -1,20 +1,18 @@
 use std::ops::Mul;
 
 use bevy::ecs::entity::Entity;
-use bevy::math::{ivec3, vec3};
+use bevy::math::vec3;
 use bevy::prelude::*;
-use bevy::reflect::Array;
-use bevy::utils::hashbrown::hash_map::Entry;
-use bevy::utils::HashMap;
 use bevy_rapier2d::prelude::*;
 use rand_distr::weighted_alias::AliasableWeight;
-use crate::boid::Boid;
+use crate::boid::{Boid, Perception};
 
-use crate::flock::{Steering, BoidsRules};
+use crate::flock::BoidsRules;
 use crate::velocity_angle;
 
-struct SteeringEvent {
-
+pub struct SteeringEvent {
+    pub entity: Entity,
+    pub force: Vec3,
 }
 
 #[derive(Component, Copy, Clone, Default)]
@@ -27,43 +25,7 @@ pub struct Acceleration {
     pub vec: Vec3,
 }
 
-#[derive(Resource, Default)]
-pub struct Spatial {
-    pub map: HashMap<IVec3, Vec<Entity>>,
-    pub list_offsets: Vec<IVec3>,
-    pub cell_size: f32,
-}
 
-impl Spatial {
-    pub fn global_to_map_loc(&self, global: &Vec3, cell_size: f32) -> IVec3 {
-        let mut pos = *global / cell_size;
-        pos.x = f32::floor(pos.x);
-        pos.y = f32::floor(pos.y);
-        pos.z = f32::floor(pos.z);
-        let tpl = ivec3(pos.x as i32, pos.y as i32, pos.z as i32);
-        return tpl;
-    }
-
-    /// Get a list of Entity that are considered nearby by the spatial hashing algorithm
-    ///
-    /// # Arguments
-    ///
-    /// * `origin`: The coordinate of the location where to start looking from
-    ///
-    /// returns: Vec<Entity>
-    pub fn get_nearby_ent(&self, origin: &IVec3) -> Vec<Entity> {
-        let mut list: Vec<Entity> = default();
-
-        for offset in &self.list_offsets {
-            let key = *origin + *offset;
-
-            if let Some(tfs) = self.map.get(&key) {
-                list.extend(tfs);
-            }
-        }
-        return list;
-    }
-}
 
 pub fn rotation_system(mut query: Query<(&mut Transform, &Velocity)>) {
     for (mut tf, vel) in &mut query {
@@ -99,55 +61,32 @@ pub fn velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<
     }
 }
 
-pub fn spatial_hash_system(
-    query: Query<(Entity, &Transform), With<Boid>>,
-    rules: Res<BoidsRules>,
-    mut hash: ResMut<Spatial>,
-) {
-    hash.map.clear();
-    hash.cell_size = rules.perception_range;
-
-    for (ent, tf) in query.iter() {
-        let local = hash.global_to_map_loc(&tf.translation, rules.perception_range);
-
-        // Add entity to selected map cell
-        match hash.map.entry(local) {
-            Entry::Occupied(mut o) => {
-                o.get_mut().push(ent);
-            }
-            Entry::Vacant(v) => {
-                v.insert(vec![(ent)]);
-            }
-        };
-    }
-}
-
 #[derive(Component, Default)]
 pub struct ObstacleAvoidance {
-    pub force: Vec3,
-}
-
-impl Steering for ObstacleAvoidance {
-    fn get_force(&self) -> Vec3 {
-        return self.force;
-    }
+    pub factor: f32,
 }
 
 pub fn obstacle_avoidance_system(
-    mut query: Query<(Entity, &Transform, &mut ObstacleAvoidance), With<Boid>>,
-    rules: Res<BoidsRules>,
+    query: Query<(Entity, &Transform, &Perception, &ObstacleAvoidance), With<Boid>>,
     rapier: Res<RapierContext>,
-    // mut lines: ResMut<DebugLines>,
+    mut event: EventWriter<SteeringEvent>,
 ) {
-    for (_, tf, mut avoid) in query.iter_mut() {
-        let entities = find_obstacles_in_range(&rapier, rules.perception_range, tf.translation);
-        avoid.force = obstacle_avoid_steering(&rapier, tf.translation, &entities) * 80.0;
+    let mut forces = Vec::new();
 
+    for (entity, tf, perception, avoid) in &query {
+        let entities = find_obstacles_in_range(&rapier, perception.range, tf.translation);
+        let force = obstacle_avoid_steering(&rapier, tf.translation, &entities) * avoid.factor;
+
+        forces.push(SteeringEvent{ entity, force });
+
+        // Only for debug, but broken for now
         for e in entities {
-            let pt = find_nearest_point_on_collider(&rapier, tf.translation.truncate(), e);
+            let _pt = find_nearest_point_on_collider(&rapier, tf.translation.truncate(), e);
             //  lines.line_colored(tf.translation, vec3(pt.x, pt.y, 0.0), 0.0, Color::RED);
         }
     }
+
+    event.send_batch(forces);
 }
 
 /// Finds all obstacles in perception range using an intersection with shape in rapier
@@ -190,7 +129,6 @@ fn obstacle_avoid_steering(
             let point = find_nearest_point_on_collider(context, actor_pos.truncate(), *e);
             let separation = -1.0 * (point - actor_pos.truncate());
 
-            let m = separation.length();
             separation
         })
         .sum();
