@@ -1,11 +1,11 @@
+use crate::boid::{Boid, Perception};
 use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy_inspector_egui::quick::ResourceInspectorPlugin;
-use crate::boid::{Boid, Perception};
 
-use crate::flock::{BoidsAlignment, BoidsCoherence, BoidsSeparation, BoidStage};
+use crate::flock::{BoidStage, BoidsAlignment, BoidsCoherence, BoidsSeparation};
 use crate::physics::Velocity;
-use crate::spatial::{SpatialRes};
+use crate::spatial::SpatialRes;
 
 #[derive(Component, Default)]
 pub struct DebugBoid {
@@ -49,9 +49,8 @@ impl Plugin for BoidsDebugTools {
                 .after(BoidStage::ForceIntegration),
         )
         .add_system(reset_color_system.before(debug_tag_spatial_hash_system))
-
-            .add_plugin(ResourceInspectorPlugin::<DebugConfig>::new())
-            .insert_resource(DebugConfig {
+        .add_plugin(ResourceInspectorPlugin::<DebugConfig>::new())
+        .insert_resource(DebugConfig {
             debug_location: vec3(-500.0, 400.0, 0.0),
             debug_vector_mag: 1.0,
             display_separation_sum: true,
@@ -74,7 +73,7 @@ pub fn debug_world_bounds(
         return;
     }
 
-   /* let start = vec3(rules.left, rules.top, 0.0);
+    /* let start = vec3(rules.left, rules.top, 0.0);
     let end = vec3(rules.right, rules.top, 0.0);
     let duration = 0.0; // Duration of 0 will show the line for 1 frame.
     //  lines.line_colored(start, end, duration, Color::BLACK);
@@ -111,8 +110,8 @@ pub fn debug_cohesion(
 
 pub fn debug_separation(
     query: Query<(Entity, &Transform, &BoidsSeparation, &DebugBoid)>,
-   // boids: Query<&Transform>,
-  //  rules: Res<BoidsRules>,
+    // boids: Query<&Transform>,
+    //  rules: Res<BoidsRules>,
     // mut lines: ResMut<DebugLines>,
     //map: Res<VoxelSpace>,
 ) {
@@ -142,7 +141,7 @@ fn debug_alignment(
         }
 
         //let map_coord = map.global_to_map_loc(&tf.translation);
-       // let neighbours = map.get_nearby_ent(&map_coord);
+        // let neighbours = map.get_nearby_ent(&map_coord);
 
         //let val = measure_alignment(ent, &list, neighbours, rules.perception_range);
 
@@ -197,9 +196,7 @@ pub fn mouse_track(
     }
 }
 
-pub fn reset_color_system(
-    mut query: Query<(&mut Sprite, &Boid), With<Boid>>,
-){
+pub fn reset_color_system(mut query: Query<(&mut Sprite, &Boid), With<Boid>>) {
     for (mut sp, b) in &mut query {
         sp.color = b.color;
     }
@@ -221,7 +218,6 @@ pub fn debug_perception_range(
     }
 }
 
-
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 struct DebugColorTag(Color);
@@ -240,4 +236,3 @@ fn debug_tag_spatial_hash_system(
         }
     }
 }
-

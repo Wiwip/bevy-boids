@@ -1,10 +1,10 @@
+use crate::spatial::SpatialPartition;
 use bevy::prelude::*;
 use rand_distr::num_traits::pow;
-use crate::spatial::SpatialPartition;
 
 #[derive(Resource, Default)]
 pub struct BrutePartition {
-    entities: Vec<(Entity, Vec3)>
+    entities: Vec<(Entity, Vec3)>,
 }
 
 impl SpatialPartition for BrutePartition {

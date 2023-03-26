@@ -1,8 +1,8 @@
+use crate::spatial::SpatialPartition;
 use bevy::math::ivec3;
 use bevy::prelude::*;
 use bevy::utils::{Entry, HashMap};
 use rand_distr::num_traits::pow;
-use crate::spatial::{SpatialPartition};
 
 #[derive(Resource, Default)]
 pub struct VoxelSpace {
@@ -21,7 +21,6 @@ impl VoxelSpace {
         return tpl;
     }
 }
-
 
 impl SpatialPartition for VoxelSpace {
     /// Get a list of Entity that are considered nearby by the spatial hashing algorithm

@@ -1,11 +1,11 @@
 use std::ops::Mul;
 
+use crate::boid::{Boid, Perception};
 use bevy::ecs::entity::Entity;
 use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use rand_distr::weighted_alias::AliasableWeight;
-use crate::boid::{Boid, Perception};
 
 use crate::flock::BoidsRules;
 use crate::velocity_angle;
@@ -24,8 +24,6 @@ pub struct Velocity {
 pub struct Acceleration {
     pub vec: Vec3,
 }
-
-
 
 pub fn rotation_system(mut query: Query<(&mut Transform, &Velocity)>) {
     for (mut tf, vel) in &mut query {
@@ -77,7 +75,7 @@ pub fn obstacle_avoidance_system(
         let entities = find_obstacles_in_range(&rapier, perception.range, tf.translation);
         let force = obstacle_avoid_steering(&rapier, tf.translation, &entities) * avoid.factor;
 
-        forces.push(SteeringEvent{ entity, force });
+        forces.push(SteeringEvent { entity, force });
 
         // Only for debug, but broken for now
         for e in entities {

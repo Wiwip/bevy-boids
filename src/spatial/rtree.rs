@@ -1,8 +1,8 @@
+use crate::spatial::SpatialPartition;
 use bevy::math::vec3;
 use bevy::prelude::*;
 use rand_distr::num_traits::pow;
 use rstar::{Point, RTree};
-use crate::spatial::SpatialPartition;
 
 #[derive(Clone, PartialEq, Debug)]
 struct RTreeEntity {
@@ -26,7 +26,7 @@ impl Point for RTreeEntity {
             0 => self.vec.x,
             1 => self.vec.y,
             2 => self.vec.z,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 
@@ -35,7 +35,7 @@ impl Point for RTreeEntity {
             0 => &mut self.vec.x,
             1 => &mut self.vec.y,
             2 => &mut self.vec.z,
-            _ => unreachable!()
+            _ => unreachable!(),
         }
     }
 }
@@ -45,24 +45,23 @@ pub struct RTreeStorage {
     tree: RTree<RTreeEntity>,
 }
 
-
 impl SpatialPartition for RTreeStorage {
     fn get_nearby_ent(&self, origin: &Vec3, perception: f32) -> Vec<Entity> {
         let elements = self.tree.locate_within_distance(
-            RTreeEntity{
+            RTreeEntity {
                 entity: Entity::PLACEHOLDER,
                 vec: *origin,
-            }, pow(perception, 2));
+            },
+            pow(perception, 2),
+        );
 
-        let list = elements.
-            map(|r| r.entity)
-            .collect();
+        let list = elements.map(|r| r.entity).collect();
 
         return list;
     }
 
     fn insert(&mut self, ent: Entity, position: &Vec3) {
-        self.tree.insert(RTreeEntity{
+        self.tree.insert(RTreeEntity {
             entity: ent,
             vec: *position,
         })
@@ -71,10 +70,7 @@ impl SpatialPartition for RTreeStorage {
     fn bulk_insert(&mut self, bulk: Vec<(Entity, Vec3)>) {
         let mut list = Vec::new();
         for (e, v) in bulk {
-            list.push(RTreeEntity {
-                entity: e,
-                vec: v,
-            })
+            list.push(RTreeEntity { entity: e, vec: v })
         }
 
         self.tree = RTree::bulk_load(list);

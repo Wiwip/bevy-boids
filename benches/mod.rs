@@ -1,11 +1,5 @@
-
-use bevy::prelude::*;
 use criterion::criterion_main;
 
-mod spatial;
+mod systems;
 
-
-criterion_main!(
-    spatial::spatial_benches,
-);
-
+criterion_main!(spatial::spatial_benches,);

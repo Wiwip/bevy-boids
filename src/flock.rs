@@ -1,13 +1,13 @@
-use std::vec::Vec;
 use bevy::math::vec3;
+use std::vec::Vec;
 
+use crate::boid::{Boid, Perception};
+use crate::BaseFlockBundle;
 use bevy::prelude::*;
 use rand::Rng;
-use crate::{BaseFlockBundle};
-use crate::boid::{Boid, Perception};
 
 use crate::physics::{Acceleration, ObstacleAvoidance, SteeringEvent, Velocity};
-use crate::spatial::{SpatialRes};
+use crate::spatial::SpatialRes;
 
 #[derive(Resource, Default)]
 pub struct BoidsRules {
@@ -93,9 +93,7 @@ pub enum BoidStage {
     ForceApplication,
 }
 
-pub fn boid_integrator_system<T: Component + Steering>(
-    mut query: Query<(&mut Acceleration, &T)>
-) {
+pub fn boid_integrator_system<T: Component + Steering>(mut query: Query<(&mut Acceleration, &T)>) {
     for (mut acc, cp) in &mut query {
         acc.vec += cp.get_force()
     }
@@ -114,11 +112,7 @@ pub fn force_event_integrator_system(
     }
 }
 
-pub fn new(
-    count: u32,
-    rect: Rect,
-    perception: f32
-) -> Vec<BaseFlockBundle> {
+pub fn new(count: u32, rect: Rect, perception: f32) -> Vec<BaseFlockBundle> {
     let mut flock = Vec::new();
 
     for _ in 0..count {
@@ -159,14 +153,12 @@ pub fn new(
             },
             bounds: WorldBoundForce {
                 factor: 12.0,
-                ..default() },
-            avoid: ObstacleAvoidance {
-                factor: 100.0,
+                ..default()
             },
+            avoid: ObstacleAvoidance { factor: 100.0 },
         };
 
         flock.push(bdl);
-
     }
     flock
 }
@@ -176,9 +168,9 @@ fn random_transform(rect: Rect) -> Transform {
 
     // Get random position within provided bounds
     let pos = vec3(
-        rng.gen_range(rect.min.x .. rect.max.x),
-        rng.gen_range(rect.min.y .. rect.max.y),
-        0.0
+        rng.gen_range(rect.min.x..rect.max.x),
+        rng.gen_range(rect.min.y..rect.max.y),
+        0.0,
     );
 
     // Get random rotation between 0 and 360 degrees
@@ -194,11 +186,7 @@ fn random_transform(rect: Rect) -> Transform {
 fn random_direction() -> Vec3 {
     let mut rng = rand::thread_rng();
 
-    let pos = vec3(
-        rng.gen_range(-1.0 .. 1.0),
-        rng.gen_range(-1.0 .. 1.0),
-        0.0
-    );
+    let pos = vec3(rng.gen_range(-1.0..1.0), rng.gen_range(-1.0..1.0), 0.0);
 
     pos
 }
@@ -252,10 +240,13 @@ pub fn separation_system(
 
     for (entity, tf, sep) in query.iter() {
         // Use data from spatial hash instead of all boids
-        let neighbours = map.space.get_nearby_ent(&tf.translation, rules.desired_separation);
-        let force = measure_separation(entity, &boids, neighbours, rules.desired_separation) * sep.factor;
+        let neighbours = map
+            .space
+            .get_nearby_ent(&tf.translation, rules.desired_separation);
+        let force =
+            measure_separation(entity, &boids, neighbours, rules.desired_separation) * sep.factor;
 
-        forces.push(SteeringEvent{ entity, force })
+        forces.push(SteeringEvent { entity, force })
     }
 
     events.send_batch(forces);
@@ -293,7 +284,9 @@ pub fn alignment_system(
     map: Res<SpatialRes>,
 ) {
     for (ent, tf, mut ali) in &mut query {
-        let neighbours = map.space.get_nearby_ent(&tf.translation, rules.desired_separation);
+        let neighbours = map
+            .space
+            .get_nearby_ent(&tf.translation, rules.desired_separation);
         ali.force = measure_alignment(ent, &boids, neighbours) * ali.factor;
     }
 }
@@ -353,11 +346,13 @@ pub fn boundaries_system(
             bound.force.x = delta * bound.factor;
         }
 
-        if tf.translation.y <= rules.area.min.y { //.bottom {
+        if tf.translation.y <= rules.area.min.y {
+            //.bottom {
             // Lower Y bound
             let delta = rules.area.min.y - tf.translation.y;
             bound.force.y = delta * bound.factor;
-        } else if tf.translation.y >= rules.area.max.y { //.top {
+        } else if tf.translation.y >= rules.area.max.y {
+            //.top {
             // Top Y bound
             let delta = rules.area.max.y - tf.translation.y;
             bound.force.y = delta * bound.factor;

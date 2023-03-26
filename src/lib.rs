@@ -1,18 +1,25 @@
 extern crate core;
 
-use bevy::prelude::*;
 use crate::boid::{Boid, Perception};
-use crate::flock::{alignment_system, boid_integrator_system, BoidsAlignment, BoidsCoherence, BoidsSeparation, BoidStage, boundaries_system, coherence_system, desired_velocity_system, DesiredVelocity, force_event_integrator_system, separation_system, WorldBoundForce};
-use crate::physics::{Acceleration, force_application_system, ObstacleAvoidance, SteeringEvent, Velocity, velocity_system};
+use crate::flock::{
+    alignment_system, boid_integrator_system, boundaries_system, coherence_system,
+    desired_velocity_system, force_event_integrator_system, separation_system, BoidStage,
+    BoidsAlignment, BoidsCoherence, BoidsSeparation, DesiredVelocity, WorldBoundForce,
+};
+use crate::physics::{
+    force_application_system, velocity_system, Acceleration, ObstacleAvoidance, SteeringEvent,
+    Velocity,
+};
+use bevy::prelude::*;
 
 pub mod boid;
+pub mod camera_control;
 pub mod debug_systems;
+pub mod flock;
+pub mod interface;
 pub mod physics;
 pub mod predator;
-pub mod interface;
-pub mod flock;
 pub mod spatial;
-pub mod camera_control;
 
 pub fn velocity_angle(vel: &Vec3) -> f32 {
     f32::atan2(vel.y, vel.x)
@@ -57,7 +64,6 @@ impl Plugin for FlockingPlugin {
         app.add_event::<SteeringEvent>();
     }
 }
-
 
 #[derive(Bundle)]
 pub struct BaseFlockBundle {

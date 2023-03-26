@@ -1,8 +1,8 @@
 use bevy::prelude::*;
 use bevy_flock::boid::{Boid, Perception};
-use bevy_flock::flock::{BoidsCoherence, measure_coherence};
-use bevy_flock::spatial::{spatial_hash_system, SpatialPartition, VoxelSpace};
-
+use bevy_flock::flock::{measure_coherence, BoidsCoherence};
+use bevy_flock::spatial;
+use bevy_flock::spatial::{spatial_hash_system, SpatialRes};
 
 pub struct Benchmark {
     world: World,
@@ -15,27 +15,27 @@ impl Benchmark {
         let mut world = World::new();
 
         // Insert spatial data structure to be tested
-        world.insert_resource(VoxelSpace::default());
+        world.insert_resource(spatial::kdtree_resource());
 
         // Spawn boids for measurements
         let mut batch = Vec::new();
         for p in pos {
             batch.push((
-                Transform{
+                Transform {
                     translation: p,
                     ..default()
                 },
-                Perception {
-                    range: 32.0,
-                },
+                Perception::default(),
                 BoidsCoherence::default(),
-                Boid,
+                Boid {
+                    color: Color::BLACK,
+                },
             ))
         }
         world.spawn_batch(batch);
 
         // Store information in a spatial storage
-        let mut partition = IntoSystem::into_system(spatial_hash_system::<VoxelSpace>);
+        let mut partition = IntoSystem::into_system(spatial_hash_system);
         partition.initialize(&mut world);
         partition.update_archetype_component_access(&world);
 
@@ -60,10 +60,10 @@ impl Benchmark {
 fn query_system(
     mut query: Query<(Entity, &Transform, &Perception, &mut BoidsCoherence)>,
     boids: Query<&Transform>,
-    map: Res<VoxelSpace>,
+    res: Res<SpatialRes>,
 ) {
     for (ent, tf, per, mut coh) in &mut query {
-        let neighbours = map.get_nearby_ent(&tf.translation, per.range);
+        let neighbours = res.space.get_nearby_ent(&tf.translation, per.range);
         coh.force = measure_coherence(ent, &boids, neighbours) * coh.factor;
     }
 }

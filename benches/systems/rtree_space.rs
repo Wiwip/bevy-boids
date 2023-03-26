@@ -1,9 +1,8 @@
 use bevy::prelude::*;
-use kd_tree::KdMap;
 use bevy_flock::boid::{Boid, Perception};
-use bevy_flock::flock::{BoidsCoherence, measure_coherence};
-use bevy_flock::spatial::{KdTreeSpace, spatial_hash_system, SpatialPartition};
-
+use bevy_flock::flock::{measure_coherence, BoidsCoherence};
+use bevy_flock::spatial::rtree::RTreeStorage;
+use bevy_flock::spatial::{spatial_hash_system, SpatialRes};
 
 pub struct Benchmark {
     world: World,
@@ -16,27 +15,27 @@ impl Benchmark {
         let mut world = World::new();
 
         // Insert spatial data structure to be tested
-        world.insert_resource(KdTreeSpace {
-            tree: KdMap::build_by_ordered_float(Vec::new()),
-        });
+        world.insert_resource(RTreeStorage::default());
 
         // Spawn boids for measurements
         let mut batch = Vec::new();
         for p in pos {
             batch.push((
-                    Transform{
+                Transform {
                     translation: p,
                     ..default()
                 },
-                 Perception::default(),
-                 BoidsCoherence::default(),
-                Boid,
+                Perception::default(),
+                BoidsCoherence::default(),
+                Boid {
+                    color: Color::BLACK,
+                },
             ))
         }
         world.spawn_batch(batch);
 
         // Store information in a spatial storage
-        let mut partition = IntoSystem::into_system(spatial_hash_system::<KdTreeSpace>);
+        let mut partition = IntoSystem::into_system(spatial_hash_system);
         partition.initialize(&mut world);
         partition.update_archetype_component_access(&world);
 
@@ -56,16 +55,15 @@ impl Benchmark {
         self.partition_system.run((), &mut self.world);
         self.query_system.run((), &mut self.world);
     }
-
 }
 
 fn query_system(
     mut query: Query<(Entity, &Transform, &Perception, &mut BoidsCoherence)>,
     boids: Query<&Transform>,
-    map: Res<KdTreeSpace>,
+    res: Res<SpatialRes>,
 ) {
     for (ent, tf, per, mut coh) in &mut query {
-        let neighbours = map.get_nearby_ent(&tf.translation, per.range);
+        let neighbours = res.space.get_nearby_ent(&tf.translation, per.range);
         coh.force = measure_coherence(ent, &boids, neighbours) * coh.factor;
     }
 }

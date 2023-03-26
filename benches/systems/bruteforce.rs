@@ -1,10 +1,8 @@
-use bevy::math::vec2;
 use bevy::prelude::*;
-use bevy_flock::flock;
 use bevy_flock::boid::{Boid, Perception};
-use bevy_flock::flock::{BoidsCoherence, measure_coherence};
-use bevy_flock::spatial::{BrutePartition, spatial_hash_system, SpatialPartition};
-
+use bevy_flock::flock::{measure_coherence, BoidsCoherence};
+use bevy_flock::spatial::simple_list::BrutePartition;
+use bevy_flock::spatial::{spatial_hash_system, SpatialPartition};
 
 pub struct Benchmark {
     world: World,
@@ -23,19 +21,21 @@ impl Benchmark {
         let mut batch = Vec::new();
         for p in pos {
             batch.push((
-                Transform{
+                Transform {
                     translation: p,
                     ..default()
                 },
                 Perception::default(),
                 BoidsCoherence::default(),
-                Boid,
+                Boid {
+                    color: Color::BLACK,
+                },
             ))
         }
         world.spawn_batch(batch);
 
         // Store information in a spatial storage
-        let mut partition = IntoSystem::into_system(spatial_hash_system::<BrutePartition>);
+        let mut partition = IntoSystem::into_system(spatial_hash_system);
         partition.initialize(&mut world);
         partition.update_archetype_component_access(&world);
 
