@@ -2,21 +2,21 @@
 
 [package]
 name = "bevy_flock"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 
 [dependencies]
 bevy = { version = "0.10", features = ["dynamic_linking"] }
+#bevy = "0.10"
 bevy_egui = "0.20"
 rand = "0.8.5"
 rand_distr = "0.4.3"
-bevy_prototype_debug_lines = "0.9"
-bevy-inspector-egui = "0.18"
-bevy_rapier2d = { version = "0.21.0", features = [ "simd-stable", "debug-render-2d" ] }
+bevy_rapier2d = { version = "0.21.0", features = ["simd-stable", "debug-render-2d"] }
 
 
 [dev-dependencies]
-criterion = "0.4.0"
+criterion = { version = "0.4", features = ["html_reports"] }
+plotters = "0.3.1"
 
 # Enable a small amount of optimization in debug mode
 [profile.dev]
@@ -30,3 +30,6 @@ opt-level = 3
 name = "boids"
 path = "benches/mod.rs"
 harness = false
+
+#[target.wasm32-unknown-unknown]
+#runner = "wasm-server-runner"

@@ -1,12 +1,11 @@
+use crate::boid::{Boid};
 use bevy::math::vec3;
 use bevy::prelude::*;
-use bevy_inspector_egui::quick::ResourceInspectorPlugin;
-use crate::boid;
-use crate::boid::Boid;
+use crate::BoidStage;
 
-use crate::flock::{BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, BoidStage, GameArea, measure_alignment, measure_coherence, measure_separation, WorldBoundForce};
-
-use crate::physics::{Spatial, Velocity};
+use crate::flock::{BoidsAlignment, BoidsCoherence, BoidsSeparation};
+use crate::perception::Perception;
+use crate::physics::Velocity;
 
 #[derive(Component, Default)]
 pub struct DebugBoid {
@@ -46,15 +45,12 @@ impl Plugin for BoidsDebugTools {
                 debug_perception_range,
                 debug_world_bounds,
                 mouse_track,
-                color_debug_boid_system,
-                debug_tag_spatial_hash_system,
-                debug_color_spatial_hash_system,
             )
                 .after(BoidStage::ForceIntegration),
-        );
-
-        app.add_plugin(ResourceInspectorPlugin::<DebugConfig>::new());
-        app.insert_resource(DebugConfig {
+        )
+        .add_system(reset_color_system.before(debug_tag_spatial_hash_system))
+        //.add_plugin(ResourceInspectorPlugin::<DebugConfig>::new())
+        .insert_resource(DebugConfig {
             debug_location: vec3(-500.0, 400.0, 0.0),
             debug_vector_mag: 1.0,
             display_separation_sum: true,
@@ -68,16 +64,16 @@ impl Plugin for BoidsDebugTools {
 }
 
 pub fn debug_world_bounds(
-    query: Query<(&Transform, &WorldBoundForce, &DebugBoid)>,
+    //query: Query<(&Transform, &WorldBoundForce, &DebugBoid)>,
     //mut lines: ResMut<DebugLines>,
-    rules: Res<GameArea>,
+    //rules: Res<GameArea>,
     config: Res<DebugConfig>,
 ) {
     if !config.display_bound {
         return;
     }
 
-   /* let start = vec3(rules.left, rules.top, 0.0);
+    /* let start = vec3(rules.left, rules.top, 0.0);
     let end = vec3(rules.right, rules.top, 0.0);
     let duration = 0.0; // Duration of 0 will show the line for 1 frame.
     //  lines.line_colored(start, end, duration, Color::BLACK);
@@ -95,40 +91,37 @@ pub fn debug_world_bounds(
 
 pub fn debug_cohesion(
     query: Query<(Entity, &Transform, &BoidsCoherence, &DebugBoid)>,
-    boids: Query<&Transform>,
-    rules: Res<BoidsRules>,
-    // mut lines: ResMut<DebugLines>,
-    map: Res<Spatial>,
+    //boids: Query<&Transform>,
+    //rules: Res<BoidsRules>,
+    //map: Res<VoxelSpace>,
 ) {
-    for (ent, tf, _, debug) in query.iter() {
+    for (_ent, _tf, _, debug) in query.iter() {
         // Display only for debug_cohesion enabled boids
         if !debug.show_cohesion {
             continue;
         }
 
-        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let neighbours = map.get_nearby_ent(&map_coord);
+        //let map_coord = map.global_to_map_loc(&tf.translation);
+        //let neighbours = map.get_nearby_ent(&map_coord);
 
-        let val = measure_coherence(ent, &boids, neighbours, rules.perception_range);
-
-        //  lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::GREEN);
+        //let val = measure_coherence(ent, &boids, neighbours, rules.perception_range);
     }
 }
 
 pub fn debug_separation(
     query: Query<(Entity, &Transform, &BoidsSeparation, &DebugBoid)>,
-    boids: Query<&Transform>,
-    rules: Res<BoidsRules>,
+    // boids: Query<&Transform>,
+    //  rules: Res<BoidsRules>,
     // mut lines: ResMut<DebugLines>,
-    map: Res<Spatial>,
+    //map: Res<VoxelSpace>,
 ) {
-    for (ent, tf, _, _) in &query {
+    for (_ent, _tf, _, _) in &query {
         // Display only for debug_cohesion enabled boids
 
-        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let neighbours = map.get_nearby_ent(&map_coord);
+        //let map_coord = map.global_to_map_loc(&tf.translation);
+        //let neighbours = map.get_nearby_ent(&map_coord);
 
-        let val = measure_separation(ent, &boids, neighbours, rules.perception_range);
+        //let val = measure_separation(ent, &boids, neighbours, rules.perception_range);
 
         //    lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::ANTIQUE_WHITE);
     }
@@ -136,21 +129,21 @@ pub fn debug_separation(
 
 fn debug_alignment(
     query: Query<(Entity, &Transform, &Velocity, &BoidsAlignment, &DebugBoid)>,
-    list: Query<(&Transform, &Velocity)>,
-    rules: Res<BoidsRules>,
-    map: Res<Spatial>,
+    //list: Query<(&Transform, &Velocity)>,
+    //rules: Res<BoidsRules>,
+    //map: Res<VoxelSpace>,
     // mut lines: ResMut<DebugLines>,
 ) {
-    for (ent, tf, _, _, debug_boid) in query.iter() {
+    for (_, _, _, _, debug_boid) in query.iter() {
         // Display only for debug_cohesion enabled boids
         if !debug_boid.show_alignment {
             continue;
         }
 
-        let map_coord = map.global_to_map_loc(&tf.translation, rules.perception_range);
-        let neighbours = map.get_nearby_ent(&map_coord);
+        //let map_coord = map.global_to_map_loc(&tf.translation);
+        // let neighbours = map.get_nearby_ent(&map_coord);
 
-        let val = measure_alignment(ent, &list, neighbours, rules.perception_range);
+        //let val = measure_alignment(ent, &list, neighbours, rules.perception_range);
 
         //   lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::INDIGO);
     }
@@ -203,78 +196,41 @@ pub fn mouse_track(
     }
 }
 
-pub fn debug_perception_range(
-    query: Query<(Entity, &Transform, &DebugBoid)>,
-    mut list: Query<(Entity, &Transform, &mut Sprite, &Boid), Without<DebugBoid>>,
-    config: Res<DebugConfig>,
-    rules: Res<BoidsRules>,
-) {
-    if !config.display_perceived {
-        return;
-    }
-    for (ent, tf, debug) in query.iter() {
-        if !debug.show_perception_range {
-            continue;
-        }
-
-        for (other_ent, other_tf, mut sprite, _) in &mut list {
-            if ent == other_ent {
-                continue;
-            }
-
-            sprite.color = Color::BLUE;
-
-            let distance = other_tf.translation.distance(tf.translation);
-            if distance < rules.perception_range {
-                sprite.color = Color::PURPLE;
-            }
-        }
+pub fn reset_color_system(mut query: Query<(&mut Sprite, &Boid), With<Boid>>) {
+    for (mut sp, b) in &mut query {
+        sp.color = b.color;
     }
 }
 
-fn color_debug_boid_system(mut query: Query<(&DebugBoid, &mut Sprite)>) {
-    for (debug, mut sprite) in &mut query {
-        sprite.color = debug.color;
+pub fn debug_perception_range(
+    query: Query<(Entity, &Transform, &Perception, &DebugBoid)>,
+    mut list: Query<(&mut Sprite, &Boid), Without<DebugBoid>>,
+) {
+    for (_, _, per, _) in query.iter() {
+        let nearby = &per.list;
+
+        for &e in nearby {
+            if let Ok((mut sp, _)) = list.get_mut(e) {
+                sp.color = Color::ORANGE_RED;
+            }
+        }
     }
 }
 
 #[derive(Component)]
 #[component(storage = "SparseSet")]
-struct SpatialColorDebug(Color);
+struct DebugColorTag(Color);
 
 fn debug_tag_spatial_hash_system(
     mut commands: Commands,
-    mut query: Query<(&DebugBoid, &Transform, &mut Sprite)>,
-    boid: Res<BoidsRules>,
-    hash: ResMut<Spatial>,
+    mut query: Query<(&DebugBoid, &Transform, &Perception)>,
 ) {
-    for (debug, tf, mut sprite) in &mut query {
-        if !debug.spatial_hash {
-            continue;
-        }
-
-        sprite.color = debug.color;
-        let map_pos = hash.global_to_map_loc(&tf.translation, boid.perception_range);
-        let values = hash.get_nearby_ent(&map_pos);
-
-        for ent in values {
+    for (_, _, per) in &mut query {
+        let list = &per.list;
+        for &ent in list {
             commands
                 .entity(ent)
-                .insert(SpatialColorDebug(Color::ORANGE_RED));
-        }
-    }
-}
-
-fn debug_color_spatial_hash_system(
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut Sprite, Option<&SpatialColorDebug>), With<Boid>>,
-) {
-    for (ent, mut sp, debug) in &mut query {
-        if let Some(dbg) = debug {
-            sp.color = dbg.0;
-            commands.entity(ent).remove::<SpatialColorDebug>();
-        } else {
-            sp.color = Color::BLUE;
+                .insert(DebugColorTag(Color::ORANGE_RED));
         }
     }
 }
