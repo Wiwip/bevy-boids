@@ -7,9 +7,6 @@ use bevy::sprite::MaterialMesh2dBundle;
 use bevy_flock::camera_control::{camera_drag, camera_zoom};
 use bevy_flock::debug_systems::{BoidsDebugTools, DebugBoid};
 use bevy_flock::flock::{BoidsRules, GameArea};
-use bevy_flock::physics::rotation_system;
-use bevy_flock::spatial::voxel::VoxelSpace;
-use bevy_flock::spatial::{spatial_hash_system, SpatialRes};
 use bevy_flock::{flock, FlockingPlugin};
 
 fn main() {
@@ -17,33 +14,15 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(FlockingPlugin)
         .add_plugin(BoidsDebugTools)
-        //.add_plugin(LogDiagnosticsPlugin::default())
-        //.add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .insert_resource(GameArea {
-            area: Rect::from_center_half_size(Vec2::ZERO, vec2(1000.0, 800.0)),
+            area: Rect::from_center_half_size(Vec2::ZERO, vec2(10000.0, 8000.0)),
         })
         .insert_resource(BoidsRules {
             desired_speed: 175.0,
             max_force: 1000.0,
             max_velocity: 225.0,
-        })
-        //.insert_resource(RTreeStorage::default())
-        .insert_resource(SpatialRes {
-            space: Box::new(VoxelSpace {
-                map: Default::default(),
-                list_offsets: vec![
-                    ivec3(-1, 1, 0),
-                    ivec3(0, 1, 0),
-                    ivec3(1, 1, 0),
-                    ivec3(-1, 0, 0),
-                    ivec3(0, 0, 0),
-                    ivec3(1, 0, 0),
-                    ivec3(-1, -1, 0),
-                    ivec3(0, -1, 0),
-                    ivec3(1, -1, 0),
-                ],
-                cell_size: 32.0,
-            }),
         })
         .add_startup_system(setup)
         .add_system(camera_drag)
@@ -62,7 +41,7 @@ fn setup(
     commands.spawn(Camera2dBundle::default());
 
     let perception = 32.;
-    let list = flock::new(2000, rules.area, perception);
+    let list = flock::new(10000, rules.area, perception);
     commands.spawn_batch(list);
 
     let debug = flock::new(1, rules.area, perception);

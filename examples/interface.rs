@@ -1,9 +1,8 @@
 use bevy::math::vec2;
-use bevy::{prelude::*, render::camera::Projection, window::PrimaryWindow};
+use bevy::{prelude::*};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 use bevy_flock::flock::{BoidsRules, GameArea};
-use bevy_flock::spatial::{spatial_hash_system, SpatialRes};
-use bevy_flock::{flock, spatial, FlockingPlugin};
+use bevy_flock::{flock, perception, FlockingPlugin};
 
 #[derive(Default, Resource)]
 struct OccupiedScreenSpace {
@@ -23,7 +22,6 @@ fn main() {
         .add_plugin(FlockingPlugin)
         .init_resource::<OccupiedScreenSpace>()
         .init_resource::<UiState>()
-        .insert_resource(spatial::kdtree_resource())
         .insert_resource(BoidsRules {
             desired_speed: 75.0,
             max_force: 100.0,
@@ -33,7 +31,6 @@ fn main() {
             area: Rect::from_center_half_size(Vec2::ZERO, vec2(1000.0, 800.0)),
         })
         .add_startup_system(setup)
-        .add_system(spatial_hash_system)
         .add_system(ui_example_system)
         .run();
 }

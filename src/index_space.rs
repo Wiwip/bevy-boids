@@ -1,17 +1,17 @@
-use crate::spatial::SpatialPartition;
 use bevy::math::ivec3;
 use bevy::prelude::*;
 use bevy::utils::{Entry, HashMap};
 use rand_distr::num_traits::pow;
+use crate::partition::SpatialPartition;
 
 #[derive(Resource, Default)]
-pub struct VoxelSpace {
+pub struct IndexPartition {
     pub map: HashMap<IVec3, Vec<(Entity, Vec3)>>,
     pub list_offsets: Vec<IVec3>,
     pub cell_size: f32,
 }
 
-impl VoxelSpace {
+impl IndexPartition {
     pub fn global_to_map_loc(&self, global: &Vec3) -> IVec3 {
         let mut pos = *global / self.cell_size;
         pos.x = f32::floor(pos.x);
@@ -22,7 +22,7 @@ impl VoxelSpace {
     }
 }
 
-impl SpatialPartition for VoxelSpace {
+impl SpatialPartition for IndexPartition {
     /// Get a list of Entity that are considered nearby by the spatial hashing algorithm
     ///
     /// # Arguments

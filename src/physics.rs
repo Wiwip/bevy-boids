@@ -1,6 +1,6 @@
 use std::ops::Mul;
 
-use crate::boid::{Boid, Perception};
+use crate::boid::{Boid};
 use bevy::ecs::entity::Entity;
 use bevy::math::vec3;
 use bevy::prelude::*;
@@ -8,6 +8,7 @@ use bevy_rapier2d::prelude::*;
 use rand_distr::weighted_alias::AliasableWeight;
 
 use crate::flock::BoidsRules;
+use crate::perception::Perception;
 use crate::velocity_angle;
 
 pub struct SteeringEvent {
@@ -53,7 +54,10 @@ pub fn force_application_system(
     }
 }
 
-pub fn velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
+pub fn velocity_system(
+    mut query: Query<(&mut Transform, &Velocity)>,
+    time: Res<Time>
+) {
     for (mut tf, vel) in &mut query {
         tf.translation += vel.vec * time.delta_seconds();
     }

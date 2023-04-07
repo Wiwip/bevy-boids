@@ -28,19 +28,11 @@ pub fn camera_zoom(
         match ev.unit {
             MouseScrollUnit::Line => {
                 proj.scale -= ev.y / 10.;
-                println!(
-                    "Scroll (line units): vertical: {}, horizontal: {}",
-                    ev.y, ev.x
-                );
             }
             MouseScrollUnit::Pixel => {
                 proj.scale -= ev.y / 10.;
-                println!(
-                    "Scroll (pixel units): vertical: {}, horizontal: {}",
-                    ev.y, ev.x
-                );
             }
         }
-        proj.scale = clamp(proj.scale, 0.25, 1.25);
+        proj.scale = clamp(proj.scale, 0.25, 1.75);
     }
 }

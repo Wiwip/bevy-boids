@@ -1,14 +1,14 @@
-use std::sync::{Arc, LockResult, RwLock};
+use std::sync::RwLock;
 use bevy::math::vec3;
 use std::vec::Vec;
 
-use crate::boid::{Boid, Perception};
+use crate::boid::{Boid};
 use crate::BaseFlockBundle;
 use bevy::prelude::*;
 use rand::Rng;
+use crate::perception::Perception;
 
-use crate::physics::{Acceleration, ObstacleAvoidance, SteeringEvent, Velocity};
-use crate::spatial::SpatialRes;
+use crate::physics::{Acceleration, ObstacleAvoidance, Velocity};
 
 #[derive(Resource, Default)]
 pub struct BoidsRules {
@@ -89,7 +89,7 @@ pub fn new(count: u32, rect: Rect, perception: f32) -> Vec<BaseFlockBundle> {
             boid: Boid {
                 color: Color::BLACK,
             },
-            perception: Perception { range: perception },
+            perception: Perception { range: perception, list: vec![] },
             vel: Velocity {
                 vec: random_direction(),
             },
@@ -111,9 +111,12 @@ pub fn new(count: u32, rect: Rect, perception: f32) -> Vec<BaseFlockBundle> {
                 distance: 12.0,
             },
             ali: BoidsAlignment { factor: 8.0 },
-            bounds: WorldBoundForce { factor: 12.0 },
+            bounds: WorldBoundForce { factor: 4.0 },
             avoid: ObstacleAvoidance { factor: 100.0 },
             steer: Default::default(),
+
+            body: Default::default(),
+            collider: Default::default(),
         };
 
         flock.push(bdl);
@@ -150,10 +153,9 @@ fn random_direction() -> Vec3 {
 pub fn coherence_system(
     query: Query<(Entity, &Transform, &Perception, &BoidsCoherence, &SteeringPressure)>,
     boids: Query<&Transform>,
-    map: Res<SpatialRes>,
 ) {
     for (entity, tf, per, coh, steer) in query.iter() {
-        let neighbours = map.space.get_nearby_ent(&tf.translation, per.range);
+        let neighbours = &per.list;
         let force = measure_coherence(entity, &boids, neighbours) * coh.factor;
 
         let mut vec = steer.lock.write().unwrap();
@@ -165,14 +167,14 @@ pub fn coherence_system(
 pub fn measure_coherence(
     entity: Entity,
     query: &Query<&Transform>,
-    neighbours: Vec<Entity>,
+    neighbours: &Vec<Entity>,
 ) -> Vec3 {
     let local_tf = query.get(entity).unwrap();
     let mut count = 0;
 
     let steer: Vec3 = neighbours
         .into_iter()
-        .map(|e| {
+        .map(|&e| {
             if e == entity {
                 return Vec3::ZERO;
             }
@@ -192,11 +194,10 @@ pub fn measure_coherence(
 pub fn separation_system(
     query: Query<(Entity, &Transform, &Perception, &BoidsSeparation, &SteeringPressure)>,
     boids: Query<&Transform>,
-    map: Res<SpatialRes>,
 ) {
     for (entity, tf, per, sep, steer) in query.iter() {
         // Use data from spatial hash instead of all boids
-        let neighbours = map.space.get_nearby_ent(&tf.translation, per.range);
+        let neighbours = &per.list;
         let force = measure_separation(entity, &boids, neighbours, sep.distance) * sep.factor;
         let mut vec = steer.lock.write().unwrap();
         *vec += force;
@@ -206,7 +207,7 @@ pub fn separation_system(
 pub fn measure_separation(
     entity: Entity,
     query: &Query<&Transform>,
-    neighbours: Vec<Entity>,
+    neighbours: &Vec<Entity>,
     dist: f32,
 ) -> Vec3 {
     let mut count = 0;
@@ -215,9 +216,9 @@ pub fn measure_separation(
     let result = neighbours
         .into_iter()
         // Exclude our current boid
-        .filter(|&e| entity != e)
+        .filter(|&&e| entity != e)
         // Get all translations
-        .map(|e| query.get(e).unwrap().translation)
+        .map(|&e| query.get(e).unwrap().translation)
         .map(|v| {
             count += 1;
             let sep = -1.0 * (v - local_tf);
@@ -231,10 +232,9 @@ pub fn measure_separation(
 pub fn alignment_system(
     query: Query<(Entity, &Transform, &Perception, &BoidsAlignment, &SteeringPressure)>,
     boids: Query<(&Transform, &Velocity)>,
-    map: Res<SpatialRes>,
 ) {
     for (entity, tf, per, ali, steer) in &query {
-        let neighbours = map.space.get_nearby_ent(&tf.translation, per.range);
+        let neighbours = &per.list;
         let force = measure_alignment(entity, &boids, neighbours) * ali.factor;
 
         let mut vec = steer.lock.write().unwrap();
@@ -246,16 +246,16 @@ pub fn alignment_system(
 pub fn measure_alignment(
     entity: Entity,
     query: &Query<(&Transform, &Velocity)>,
-    neighbours: Vec<Entity>,
+    neighbours: &Vec<Entity>,
 ) -> Vec3 {
     let mut count = 0;
     let (_, local_mov) = query.get(entity).unwrap();
 
     let steer: Vec3 = neighbours
         .into_iter()
-        .filter(|&e| entity != e)
+        .filter(|&e| entity != *e)
         // Get transforms and movement components
-        .map(|e| query.get(e).unwrap())
+        .map(|e| query.get(*e).unwrap())
         .map(|(_, &vel)| {
             count += 1;
             return vel.vec;

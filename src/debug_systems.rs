@@ -1,11 +1,11 @@
-use crate::boid::{Boid, Perception};
+use crate::boid::{Boid};
 use bevy::math::vec3;
 use bevy::prelude::*;
 use crate::BoidStage;
 
 use crate::flock::{BoidsAlignment, BoidsCoherence, BoidsSeparation};
+use crate::perception::Perception;
 use crate::physics::Velocity;
-use crate::spatial::SpatialRes;
 
 #[derive(Component, Default)]
 pub struct DebugBoid {
@@ -205,12 +205,11 @@ pub fn reset_color_system(mut query: Query<(&mut Sprite, &Boid), With<Boid>>) {
 pub fn debug_perception_range(
     query: Query<(Entity, &Transform, &Perception, &DebugBoid)>,
     mut list: Query<(&mut Sprite, &Boid), Without<DebugBoid>>,
-    res: Res<SpatialRes>,
 ) {
     for (_, tf, per, _) in query.iter() {
-        let nearby = res.space.get_nearby_ent(&tf.translation, per.range);
+        let nearby = &per.list;
 
-        for e in nearby {
+        for &e in nearby {
             if let Ok((mut sp, _)) = list.get_mut(e) {
                 sp.color = Color::ORANGE_RED;
             }
@@ -225,11 +224,10 @@ struct DebugColorTag(Color);
 fn debug_tag_spatial_hash_system(
     mut commands: Commands,
     mut query: Query<(&DebugBoid, &Transform, &Perception)>,
-    res: ResMut<SpatialRes>,
 ) {
     for (_, tf, per) in &mut query {
-        let list = res.space.get_nearby_ent(&tf.translation, per.range);
-        for ent in list {
+        let list = &per.list;
+        for &ent in list {
             commands
                 .entity(ent)
                 .insert(DebugColorTag(Color::ORANGE_RED));
