@@ -206,7 +206,7 @@ pub fn debug_perception_range(
     query: Query<(Entity, &Transform, &Perception, &DebugBoid)>,
     mut list: Query<(&mut Sprite, &Boid), Without<DebugBoid>>,
 ) {
-    for (_, tf, per, _) in query.iter() {
+    for (_, _, per, _) in query.iter() {
         let nearby = &per.list;
 
         for &e in nearby {
@@ -225,7 +225,7 @@ fn debug_tag_spatial_hash_system(
     mut commands: Commands,
     mut query: Query<(&DebugBoid, &Transform, &Perception)>,
 ) {
-    for (_, tf, per) in &mut query {
+    for (_, _, per) in &mut query {
         let list = &per.list;
         for &ent in list {
             commands

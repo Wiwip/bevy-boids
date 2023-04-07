@@ -17,7 +17,7 @@ fn main() {
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .insert_resource(GameArea {
-            area: Rect::from_center_half_size(Vec2::ZERO, vec2(10000.0, 8000.0)),
+            area: Rect::from_center_half_size(Vec2::ZERO, vec2(5000.0, 4000.0)),
         })
         .insert_resource(BoidsRules {
             desired_speed: 175.0,

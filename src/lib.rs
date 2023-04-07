@@ -2,35 +2,30 @@ extern crate core;
 
 use crate::boid::Boid;
 use crate::flock::{
-    alignment_system, boid_integrator_system, boundaries_system, coherence_system,
-    desired_velocity_system, separation_system, BoidsAlignment, BoidsCoherence, BoidsSeparation,
-    DesiredVelocity, SteeringPressure, WorldBoundForce,
+    alignment_system, boid_integrator_system, BoidsAlignment, BoidsCoherence,
+    BoidsSeparation, boundaries_system, coherence_system, desired_velocity_system, DesiredVelocity,
+    separation_system, SteeringPressure, WorldBoundForce,
 };
-use crate::index_space::IndexPartition;
-use crate::partition::{spatial_hash_system, SpatialRes};
-use crate::perception::{index_perception_system, perception_system, Perception};
+use spatial::index_partition::IndexPartition;
+use crate::perception::{Perception, perception_system, rapier_perception_system};
 use crate::physics::{
-    force_application_system, rotation_system, velocity_system, Acceleration, Velocity,
-    ObstacleAvoidance,
+    Acceleration, force_application_system, ObstacleAvoidance, rotation_system, Velocity,
+    velocity_system,
 };
 use bevy::math::ivec3;
 use bevy::prelude::*;
-use bevy_rapier2d::plugin::systems::{
-    apply_collider_user_changes, apply_rigid_body_user_changes, init_colliders, init_rigid_bodies,
-    sync_removals,
-};
 use bevy_rapier2d::prelude::*;
+use crate::spatial::partition::{spatial_hash_system, SpatialRes};
 
 pub mod boid;
 pub mod camera_control;
 pub mod debug_systems;
 pub mod flock;
-mod index_space;
 pub mod interface;
-mod partition;
 pub mod perception;
 pub mod physics;
 pub mod predator;
+pub mod spatial;
 
 pub fn velocity_angle(vel: &Vec3) -> f32 {
     f32::atan2(vel.y, vel.x)
@@ -48,7 +43,10 @@ pub struct FlockingPlugin;
 impl Plugin for FlockingPlugin {
     fn build(&self, app: &mut App) {
         app
+            .add_system(spatial_hash_system.before(perception_system))
             .add_system(perception_system.before(BoidStage::ForceCalculation))
+
+            .add_system(rapier_perception_system.before(BoidStage::ForceCalculation))
             .add_system(rotation_system);
 
         app.add_systems(
@@ -65,7 +63,6 @@ impl Plugin for FlockingPlugin {
         app.add_systems(
             (
                 boid_integrator_system,
-                //force_event_integrator_system,
             )
                 .in_set(BoidStage::ForceIntegration),
         );
@@ -80,8 +77,9 @@ impl Plugin for FlockingPlugin {
         app.configure_set(BoidStage::ForceIntegration.before(BoidStage::ForceApplication));
 
         // Rapier mandatory data
-        app.add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
-            //.add_plugin(RapierDebugRenderPlugin::default())
+        app
+            .add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
+            .add_plugin(RapierDebugRenderPlugin::default())
             .insert_resource(RapierConfiguration {
                 gravity: Vec2::ZERO,
                 physics_pipeline_active: false,
@@ -127,9 +125,6 @@ pub struct BaseFlockBundle {
     pub bounds: WorldBoundForce,
     pub avoid: ObstacleAvoidance,
     pub steer: SteeringPressure,
-
-    pub body: RigidBody,
-    pub collider: Collider,
 }
 impl Default for BaseFlockBundle {
     fn default() -> Self {
@@ -146,8 +141,6 @@ impl Default for BaseFlockBundle {
             bounds: Default::default(),
             avoid: Default::default(),
             steer: Default::default(),
-            body: Default::default(),
-            collider: Default::default(),
         }
     }
 }

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
-use crate::partition::SpatialRes;
+use crate::spatial::partition::SpatialRes;
 
 
 #[derive(Component, Default)]
@@ -9,10 +9,9 @@ pub struct Perception {
     pub list: Vec<Entity>,
 }
 
-
-pub fn perception_system(
+pub fn rapier_perception_system(
     mut query: Query<(&mut Perception, &Transform)>,
-    mut rapier: Res<RapierContext>
+    rapier: Res<RapierContext>
 ) {
     let rotation = 0.0;
     let filter = QueryFilter::default();
@@ -27,7 +26,7 @@ pub fn perception_system(
 
         // Cast shape and add perceived entities to list
         rapier.intersections_with_shape(pos, rotation, &shape, filter, |e|{
-           &list.push(e);
+           let _ = &list.push(e);
             true
         });
 
@@ -35,7 +34,7 @@ pub fn perception_system(
     }
 }
 
-pub fn index_perception_system(
+pub fn perception_system(
     mut query: Query<(&mut Perception, &Transform)>,
     space: Res<SpatialRes>
 ) {

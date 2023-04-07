@@ -1,20 +1,13 @@
 use std::ops::Mul;
-
-use crate::boid::{Boid};
 use bevy::ecs::entity::Entity;
 use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use rand_distr::weighted_alias::AliasableWeight;
 
-use crate::flock::BoidsRules;
+use crate::flock::{BoidsRules, SteeringPressure};
 use crate::perception::Perception;
 use crate::velocity_angle;
-
-pub struct SteeringEvent {
-    pub entity: Entity,
-    pub force: Vec3,
-}
 
 #[derive(Component, Copy, Clone, Default)]
 pub struct Velocity {
@@ -54,10 +47,7 @@ pub fn force_application_system(
     }
 }
 
-pub fn velocity_system(
-    mut query: Query<(&mut Transform, &Velocity)>,
-    time: Res<Time>
-) {
+pub fn velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
     for (mut tf, vel) in &mut query {
         tf.translation += vel.vec * time.delta_seconds();
     }
@@ -69,17 +59,15 @@ pub struct ObstacleAvoidance {
 }
 
 pub fn obstacle_avoidance_system(
-    query: Query<(Entity, &Transform, &Perception, &ObstacleAvoidance), With<Boid>>,
+    query: Query<(&Transform, &Perception, &ObstacleAvoidance, &SteeringPressure)>,
     rapier: Res<RapierContext>,
-    mut event: EventWriter<SteeringEvent>,
 ) {
-    let mut forces = Vec::new();
-
-    for (entity, tf, perception, avoid) in &query {
+    for (tf, perception, avoid, pressure) in &query {
         let entities = find_obstacles_in_range(&rapier, perception.range, tf.translation);
         let force = obstacle_avoid_steering(&rapier, tf.translation, &entities) * avoid.factor;
 
-        forces.push(SteeringEvent { entity, force });
+        let mut vec = pressure.lock.write().unwrap();
+        *vec += force;
 
         // Only for debug, but broken for now
         for e in entities {
@@ -88,7 +76,6 @@ pub fn obstacle_avoidance_system(
         }
     }
 
-    event.send_batch(forces);
 }
 
 /// Finds all obstacles in perception range using an intersection with shape in rapier
