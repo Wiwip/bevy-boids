@@ -1,8 +1,14 @@
 use bevy::math::vec2;
-use bevy::{prelude::*};
+use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
-use bevy_flock::flock::{BoidsRules, GameArea};
+use bevy_flock::flock::{
+    BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameArea,
+    WorldBoundForce,
+};
+use bevy_flock::perception::Perception;
+use bevy_flock::physics::ObstacleAvoidance;
 use bevy_flock::{flock, perception, FlockingPlugin};
+use bevy_flock::interface::{adjust_from_ui_system, UiState};
 
 #[derive(Default, Resource)]
 struct OccupiedScreenSpace {
@@ -21,27 +27,45 @@ fn main() {
         .add_plugin(EguiPlugin)
         .add_plugin(FlockingPlugin)
         .init_resource::<OccupiedScreenSpace>()
-        .init_resource::<UiState>()
         .insert_resource(BoidsRules {
             desired_speed: 75.0,
             max_force: 100.0,
             max_velocity: 125.0,
         })
+        .insert_resource(UiState {
+            coherence: 4.0,
+            separation: 8.0,
+            alignment: 2.0,
+            ..default()
+        })
         .insert_resource(GameArea {
-            area: Rect::from_center_half_size(Vec2::ZERO, vec2(1000.0, 800.0)),
+            area: Rect::from_center_half_size(Vec2::ZERO, vec2(1200.0, 800.0)),
         })
         .add_startup_system(setup)
         .add_system(ui_example_system)
+        .add_system(adjust_from_ui_system)
         .run();
 }
 
-fn setup(mut commands: Commands) {
+fn setup(mut commands: Commands, rules: Res<GameArea>) {
     commands.spawn(Camera2dBundle::default());
-
-    let area = Rect::from_center_half_size(Vec2::ZERO, vec2(1200.0, 1000.0));
     let perception = 32.;
-    let list = flock::new(1000, area, perception);
-    commands.spawn_batch(list);
+
+    flock::new(&mut commands, 2000, rules.area, |ec| {
+        ec.insert(Perception {
+            range: perception,
+            ..default()
+        })
+        .insert(BoidsCoherence { factor: 4.0 })
+        .insert(BoidsSeparation {
+            factor: 8.0,
+            distance: 10.0,
+        })
+        .insert(BoidsAlignment { factor: 2.0 })
+        .insert(WorldBoundForce { factor: 4.0 })
+        .insert(ObstacleAvoidance { factor: 50.0 })
+        .insert(DesiredVelocity { factor: 1.0 });
+    });
 }
 
 #[derive(Default)]
@@ -50,46 +74,22 @@ struct CreateFlockUiState {
     color: Color,
 }
 
-#[derive(Default, Resource)]
-struct UiState {
-    label: String,
-    value: f32,
-    inverted: bool,
-    egui_texture_handle: Option<egui::TextureHandle>,
-    is_window_open: bool,
-}
-
 fn ui_example_system(
     mut ui_state: ResMut<UiState>,
     mut contexts: EguiContexts,
-    mut state: Local<CreateFlockUiState>,
 ) {
     let ctx = contexts.ctx_mut();
 
     egui::SidePanel::left("side_panel")
-        .default_width(200.0)
+        .default_width(250.0)
+        .max_width(300.0)
         .show(ctx, |ui| {
-            ui.heading("Tools Panel");
+            ui.heading("Bevy Flocking");
 
-            ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut ui_state.label);
-            });
-
-            ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                ui_state.value += 1.0;
-            }
-
-            ui.allocate_space(egui::Vec2::new(1.0, 100.0));
-            ui.horizontal(|ui| {
-                ui.button("Load").clicked();
-                ui.button("Invert").clicked();
-                ui.button("Remove").clicked();
-            });
-
-            ui.allocate_space(egui::Vec2::new(1.0, 10.0));
-            ui.checkbox(&mut ui_state.is_window_open, "Pause");
+            ui.allocate_space(egui::Vec2::new(2.0, 22.0));
+            ui.add(egui::Slider::new(&mut ui_state.coherence, 0.0..=10.0).text("Cohesion"));
+            ui.add(egui::Slider::new(&mut ui_state.separation, 0.0..=10.0).text("Separation"));
+            ui.add(egui::Slider::new(&mut ui_state.alignment, 0.0..=10.0).text("Alignment"));
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
                 ui.add(egui::Hyperlink::from_label_and_url(

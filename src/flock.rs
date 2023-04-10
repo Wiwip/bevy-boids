@@ -1,12 +1,13 @@
-use std::sync::RwLock;
+use bevy::ecs::system::EntityCommands;
 use bevy::math::vec3;
+use std::sync::RwLock;
 use std::vec::Vec;
 
-use crate::boid::{Boid};
+use crate::boid::Boid;
+use crate::perception::Perception;
 use crate::BaseFlockBundle;
 use bevy::prelude::*;
 use rand::Rng;
-use crate::perception::Perception;
 
 use crate::physics::{Acceleration, ObstacleAvoidance, Velocity};
 
@@ -53,9 +54,7 @@ pub struct SteeringPressure {
     pub lock: RwLock<Vec3>,
 }
 
-pub fn boid_integrator_system(
-    mut query: Query<(&mut Acceleration, &SteeringPressure)>
-) {
+pub fn boid_integrator_system(mut query: Query<(&mut Acceleration, &SteeringPressure)>) {
     for (mut acc, steer) in &mut query {
         let force = steer.lock.read().unwrap();
         acc.vec += *force;
@@ -67,15 +66,18 @@ pub fn boid_integrator_system(
     }
 }
 
-pub fn new(count: u32, rect: Rect, perception: f32) -> Vec<BaseFlockBundle> {
-    let mut flock = Vec::new();
-
+pub fn new(
+    mut commands: &mut Commands,
+    count: u32,
+    rect: Rect,
+    mut f: impl Fn(&mut EntityCommands),
+) {
     for _ in 0..count {
-        let bdl = BaseFlockBundle {
+        let boid = BaseFlockBundle {
             boid: Boid {
                 color: Color::BLACK,
             },
-            perception: Perception { range: perception, list: vec![] },
+            perception: Default::default(),
             vel: Velocity {
                 vec: random_direction(),
             },
@@ -90,21 +92,12 @@ pub fn new(count: u32, rect: Rect, perception: f32) -> Vec<BaseFlockBundle> {
                 visibility: Visibility::Visible,
                 ..default()
             },
-            desi: DesiredVelocity { factor: 1.0 },
-            coh: BoidsCoherence { factor: 8.0 },
-            sep: BoidsSeparation {
-                factor: 4.0,
-                distance: 12.0,
-            },
-            ali: BoidsAlignment { factor: 1.0 },
-            bounds: WorldBoundForce { factor: 4.0 },
-            avoid: ObstacleAvoidance { factor: 100.0 },
-            steer: Default::default(),
+            integrator: Default::default(),
         };
 
-        flock.push(bdl);
+        let ec = &mut commands.spawn(boid);
+        f(ec);
     }
-    flock
 }
 
 fn random_transform(rect: Rect) -> Transform {
@@ -140,7 +133,6 @@ pub fn coherence_system(
 
         let mut vec = steer.lock.write().unwrap();
         *vec += force;
-
     }
 }
 
@@ -220,7 +212,6 @@ pub fn alignment_system(
         let mut vec = steer.lock.write().unwrap();
         *vec += force;
     }
-
 }
 
 pub fn measure_alignment(
@@ -268,7 +259,6 @@ pub fn desired_velocity_system(
 pub fn boundaries_system(
     mut query: Query<(&Transform, &WorldBoundForce, &SteeringPressure)>,
     rules: Res<GameArea>,
-
 ) {
     for (tf, bound, steer) in &mut query {
         let mut force = Vec3::ZERO;

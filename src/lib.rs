@@ -111,20 +111,10 @@ impl Plugin for FlockingPlugin {
 pub struct BaseFlockBundle {
     pub boid: Boid,
     pub perception: Perception,
-
-    pub desi: DesiredVelocity,
     pub vel: Velocity,
     pub acc: Acceleration,
-
     pub sp: SpriteBundle,
-
-    pub coh: BoidsCoherence,
-    pub sep: BoidsSeparation,
-    pub ali: BoidsAlignment,
-
-    pub bounds: WorldBoundForce,
-    pub avoid: ObstacleAvoidance,
-    pub steer: SteeringPressure,
+    integrator: SteeringPressure,
 }
 impl Default for BaseFlockBundle {
     fn default() -> Self {
@@ -133,14 +123,8 @@ impl Default for BaseFlockBundle {
             perception: Perception::default(),
             vel: Velocity::default(),
             acc: Acceleration::default(),
-            sp: Default::default(),
-            coh: Default::default(),
-            sep: Default::default(),
-            ali: Default::default(),
-            desi: Default::default(),
-            bounds: Default::default(),
-            avoid: Default::default(),
-            steer: Default::default(),
+            sp: SpriteBundle::default(),
+            integrator: SteeringPressure::default(),
         }
     }
 }

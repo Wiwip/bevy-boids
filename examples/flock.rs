@@ -6,8 +6,13 @@ use bevy::prelude::*;
 use bevy::sprite::MaterialMesh2dBundle;
 use bevy_flock::camera_control::{camera_drag, camera_zoom};
 use bevy_flock::debug_systems::{BoidsDebugTools, DebugBoid};
-use bevy_flock::flock::{BoidsRules, GameArea};
-use bevy_flock::{flock, FlockingPlugin};
+use bevy_flock::flock::{
+    BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameArea,
+    WorldBoundForce,
+};
+use bevy_flock::perception::Perception;
+use bevy_flock::physics::ObstacleAvoidance;
+use bevy_flock::{flock, BaseFlockBundle, FlockingPlugin};
 
 fn main() {
     App::new()
@@ -40,20 +45,44 @@ fn setup(
 ) {
     commands.spawn(Camera2dBundle::default());
 
-    let perception = 32.;
-    let list = flock::new(10000, rules.area, perception);
-    commands.spawn_batch(list);
+    let perception = 32.0;
 
-    let debug = flock::new(1, rules.area, perception);
-    for i in debug {
-        commands
-            .spawn(i)
-            .insert(MaterialMesh2dBundle {
-                mesh: meshes.add(shape::Circle::new(perception).into()).into(),
-                material: materials.add(ColorMaterial::from(Color::PURPLE)),
-                transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
-                ..default()
-            })
-            .insert(DebugBoid::default());
-    }
+    flock::new(&mut commands, 10000, rules.area, |ec| {
+        ec.insert(Perception {
+            range: perception,
+            ..default()
+        })
+        .insert(BoidsCoherence { factor: 4.0 })
+        .insert(BoidsSeparation {
+            factor: 8.0,
+            distance: 10.0,
+        })
+        .insert(BoidsAlignment { factor: 2.0 })
+        .insert(WorldBoundForce { factor: 4.0 })
+        .insert(ObstacleAvoidance { factor: 50.0 })
+        .insert(DesiredVelocity { factor: 1.0 });
+    });
+
+    commands
+        .spawn(BaseFlockBundle::default())
+        .insert(MaterialMesh2dBundle {
+            mesh: meshes.add(shape::Circle::new(perception).into()).into(),
+            material: materials.add(ColorMaterial::from(Color::PURPLE)),
+            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+            ..default()
+        })
+        .insert(DebugBoid::default())
+        .insert(Perception {
+            range: 32.0,
+            list: vec![],
+        })
+        .insert(BoidsCoherence { factor: 6.0 })
+        .insert(BoidsSeparation {
+            factor: 4.0,
+            distance: 10.0,
+        })
+        .insert(BoidsAlignment { factor: 1.0 })
+        .insert(WorldBoundForce { factor: 4.0 })
+        .insert(ObstacleAvoidance { factor: 50.0 })
+        .insert(DesiredVelocity { factor: 1.0 });
 }
