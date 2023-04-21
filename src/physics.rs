@@ -1,13 +1,10 @@
-use std::ops::Mul;
+use crate::flock::BoidsRules;
+use crate::velocity_angle;
 use bevy::ecs::entity::Entity;
-use bevy::math::vec3;
 use bevy::prelude::*;
 use bevy_rapier2d::prelude::*;
 use rand_distr::weighted_alias::AliasableWeight;
-
-use crate::flock::{BoidsRules, SteeringPressure};
-use crate::perception::Perception;
-use crate::velocity_angle;
+use std::ops::Mul;
 
 #[derive(Component, Copy, Clone, Default)]
 pub struct Velocity {
@@ -53,31 +50,6 @@ pub fn velocity_system(mut query: Query<(&mut Transform, &Velocity)>, time: Res<
     }
 }
 
-#[derive(Component, Default)]
-pub struct ObstacleAvoidance {
-    pub factor: f32,
-}
-
-pub fn obstacle_avoidance_system(
-    query: Query<(&Transform, &Perception, &ObstacleAvoidance, &SteeringPressure)>,
-    rapier: Res<RapierContext>,
-) {
-    for (tf, perception, avoid, pressure) in &query {
-        let entities = find_obstacles_in_range(&rapier, perception.range, tf.translation);
-        let force = obstacle_avoid_steering(&rapier, tf.translation, &entities) * avoid.factor;
-
-        let mut vec = pressure.lock.write().unwrap();
-        *vec += force;
-
-        // Only for debug, but broken for now
-        for e in entities {
-            let _pt = find_nearest_point_on_collider(&rapier, tf.translation.truncate(), e);
-            //  lines.line_colored(tf.translation, vec3(pt.x, pt.y, 0.0), 0.0, Color::RED);
-        }
-    }
-
-}
-
 /// Finds all obstacles in perception range using an intersection with shape in rapier
 ///
 /// # Arguments
@@ -87,7 +59,7 @@ pub fn obstacle_avoidance_system(
 /// * `location`: Where to look from
 ///
 /// returns: Vec<Entity, Global>
-fn find_obstacles_in_range(
+pub fn find_obstacles_in_range(
     context: &Res<RapierContext>,
     perception: f32,
     location: Vec3,
@@ -103,33 +75,6 @@ fn find_obstacles_in_range(
     return entities;
 }
 
-fn obstacle_avoid_steering(
-    context: &Res<RapierContext>,
-    actor_pos: Vec3,
-    entities: &Vec<Entity>,
-) -> Vec3 {
-    let mut count = 0;
-
-    let mut steer: Vec2 = entities
-        .into_iter()
-        .map(|e| {
-            count += 1;
-
-            let point = find_nearest_point_on_collider(context, actor_pos.truncate(), *e);
-            let separation = -1.0 * (point - actor_pos.truncate());
-
-            separation
-        })
-        .sum();
-
-    if count > 0 {
-        steer = steer / count as f32;
-    }
-
-    let steering = vec3(steer.x, steer.y, 0.0);
-    return steering;
-}
-
 /// Finds the closest point to a boid projected onto a shape.
 /// Typically used to measure steering pressure by obstacles
 ///
@@ -140,7 +85,7 @@ fn obstacle_avoid_steering(
 /// * `target_collider`: The obstacle in range
 ///
 /// returns: Vec2
-fn find_nearest_point_on_collider(
+pub fn find_nearest_point_on_collider(
     context: &Res<RapierContext>,
     from_position: Vec2,
     target_entity: Entity,

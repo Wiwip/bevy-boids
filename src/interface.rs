@@ -1,5 +1,5 @@
+use crate::behaviours::{Alignment, Coherence, Separation};
 use bevy::prelude::{DetectChanges, Query, Res, Resource};
-use crate::flock::{BoidsAlignment, BoidsCoherence, BoidsSeparation};
 
 #[derive(Default, Resource)]
 pub struct UiState {
@@ -10,10 +10,12 @@ pub struct UiState {
 }
 
 pub fn adjust_from_ui_system(
-    mut query: Query<(&mut BoidsCoherence, &mut BoidsSeparation, &mut BoidsAlignment)>,
+    mut query: Query<(&mut Coherence, &mut Separation, &mut Alignment)>,
     res: Res<UiState>,
 ) {
-    if !res.is_changed() { return; }
+    if !res.is_changed() {
+        return;
+    }
 
     for (mut coh, mut sep, mut ali) in &mut query {
         coh.factor = res.coherence;

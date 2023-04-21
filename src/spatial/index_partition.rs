@@ -1,8 +1,8 @@
+use crate::spatial::partition::SpatialPartition;
 use bevy::math::ivec3;
 use bevy::prelude::*;
 use bevy::utils::{Entry, HashMap};
 use rand_distr::num_traits::pow;
-use crate::spatial::partition::SpatialPartition;
 
 #[derive(Resource, Default)]
 pub struct IndexPartition {

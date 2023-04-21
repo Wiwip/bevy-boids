@@ -1,28 +1,29 @@
 extern crate bevy;
 
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
-use bevy::math::{ivec3, vec2};
+use bevy::math::vec2;
 use bevy::prelude::*;
 use bevy::sprite::MaterialMesh2dBundle;
+use bevy_flock::behaviours::avoidance::ObstacleAvoidance;
+use bevy_flock::behaviours::{
+    Alignment, BoidsPlugin, Coherence, DesiredVelocity, Separation, WorldBound,
+};
 use bevy_flock::camera_control::{camera_drag, camera_zoom};
 use bevy_flock::debug_systems::{BoidsDebugTools, DebugBoid};
-use bevy_flock::flock::{
-    BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameArea,
-    WorldBoundForce,
-};
+use bevy_flock::flock::{BoidsRules, GameArea};
 use bevy_flock::perception::Perception;
-use bevy_flock::physics::ObstacleAvoidance;
-use bevy_flock::{flock, BaseFlockBundle, FlockingPlugin};
+use bevy_flock::{flock, BaseFlockBundle, SteeringPlugin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(FlockingPlugin)
+        .add_plugin(SteeringPlugin)
+        .add_plugin(BoidsPlugin)
         .add_plugin(BoidsDebugTools)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .insert_resource(GameArea {
-            area: Rect::from_center_half_size(Vec2::ZERO, vec2(5000.0, 4000.0)),
+            area: Rect::from_center_half_size(Vec2::ZERO, vec2(1600.0, 1200.0)),
         })
         .insert_resource(BoidsRules {
             desired_speed: 175.0,
@@ -45,22 +46,22 @@ fn setup(
 ) {
     commands.spawn(Camera2dBundle::default());
 
-    let perception = 32.0;
+    let perception = 128.0;
 
-    flock::new(&mut commands, 10000, rules.area, |ec| {
+    flock::new(&mut commands, 1000, rules.area, |ec| {
         ec.insert(Perception {
             range: perception,
             ..default()
         })
-        .insert(BoidsCoherence { factor: 4.0 })
-        .insert(BoidsSeparation {
+        .insert(Coherence { factor: 4.0 })
+        .insert(Separation {
             factor: 8.0,
             distance: 10.0,
         })
-        .insert(BoidsAlignment { factor: 2.0 })
-        .insert(WorldBoundForce { factor: 4.0 })
+        .insert(Alignment { factor: 2.0 })
+        .insert(WorldBound { factor: 4.0 })
         .insert(ObstacleAvoidance { factor: 50.0 })
-        .insert(DesiredVelocity { factor: 1.0 });
+        .insert(DesiredVelocity { factor: 0.1 });
     });
 
     commands
@@ -76,13 +77,13 @@ fn setup(
             range: 32.0,
             list: vec![],
         })
-        .insert(BoidsCoherence { factor: 6.0 })
-        .insert(BoidsSeparation {
+        .insert(Coherence { factor: 6.0 })
+        .insert(Separation {
             factor: 4.0,
             distance: 10.0,
         })
-        .insert(BoidsAlignment { factor: 1.0 })
-        .insert(WorldBoundForce { factor: 4.0 })
+        .insert(Alignment { factor: 1.0 })
+        .insert(WorldBound { factor: 4.0 })
         .insert(ObstacleAvoidance { factor: 50.0 })
         .insert(DesiredVelocity { factor: 1.0 });
 }

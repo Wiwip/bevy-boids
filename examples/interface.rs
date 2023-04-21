@@ -5,10 +5,10 @@ use bevy_flock::flock::{
     BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameArea,
     WorldBoundForce,
 };
+use bevy_flock::interface::{adjust_from_ui_system, UiState};
 use bevy_flock::perception::Perception;
 use bevy_flock::physics::ObstacleAvoidance;
-use bevy_flock::{flock, perception, FlockingPlugin};
-use bevy_flock::interface::{adjust_from_ui_system, UiState};
+use bevy_flock::{flock, perception, SteeringPlugin};
 
 #[derive(Default, Resource)]
 struct OccupiedScreenSpace {
@@ -25,7 +25,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugin(EguiPlugin)
-        .add_plugin(FlockingPlugin)
+        .add_plugin(SteeringPlugin)
         .init_resource::<OccupiedScreenSpace>()
         .insert_resource(BoidsRules {
             desired_speed: 75.0,
@@ -74,10 +74,7 @@ struct CreateFlockUiState {
     color: Color,
 }
 
-fn ui_example_system(
-    mut ui_state: ResMut<UiState>,
-    mut contexts: EguiContexts,
-) {
+fn ui_example_system(mut ui_state: ResMut<UiState>, mut contexts: EguiContexts) {
     let ctx = contexts.ctx_mut();
 
     egui::SidePanel::left("side_panel")

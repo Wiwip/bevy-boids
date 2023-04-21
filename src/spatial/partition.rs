@@ -1,6 +1,5 @@
-use bevy::prelude::*;
 use crate::boid::Boid;
-
+use bevy::prelude::*;
 
 pub trait SpatialPartition {
     fn get_nearby_ent(&self, origin: &Vec3, perception: f32) -> Vec<Entity>;
@@ -14,7 +13,7 @@ pub struct SpatialRes {
     pub space: Box<dyn SpatialPartition + Send + Sync>,
 }
 
-/// The system is meant to gather all the boids so they can be stored in a space data structure
+/// The system is meant to gather all the behaviours so they can be stored in a space data structure
 /// for efficient retrieval at a later date
 ///
 /// The resource must implement the SpatialPartition trait

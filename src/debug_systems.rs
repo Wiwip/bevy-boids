@@ -1,9 +1,9 @@
-use crate::boid::{Boid};
+use crate::behaviours::{Alignment, Coherence, Separation};
+use crate::boid::Boid;
+use crate::BoidStage;
 use bevy::math::vec3;
 use bevy::prelude::*;
-use crate::BoidStage;
 
-use crate::flock::{BoidsAlignment, BoidsCoherence, BoidsSeparation};
 use crate::perception::Perception;
 use crate::physics::Velocity;
 
@@ -90,13 +90,13 @@ pub fn debug_world_bounds(
 }
 
 pub fn debug_cohesion(
-    query: Query<(Entity, &Transform, &BoidsCoherence, &DebugBoid)>,
-    //boids: Query<&Transform>,
+    query: Query<(Entity, &Transform, &Coherence, &DebugBoid)>,
+    //behaviours: Query<&Transform>,
     //rules: Res<BoidsRules>,
     //map: Res<VoxelSpace>,
 ) {
     for (_ent, _tf, _, debug) in query.iter() {
-        // Display only for debug_cohesion enabled boids
+        // Display only for debug_cohesion enabled behaviours
         if !debug.show_cohesion {
             continue;
         }
@@ -104,38 +104,38 @@ pub fn debug_cohesion(
         //let map_coord = map.global_to_map_loc(&tf.translation);
         //let neighbours = map.get_nearby_ent(&map_coord);
 
-        //let val = measure_coherence(ent, &boids, neighbours, rules.perception_range);
+        //let val = measure_coherence(ent, &behaviours, neighbours, rules.perception_range);
     }
 }
 
 pub fn debug_separation(
-    query: Query<(Entity, &Transform, &BoidsSeparation, &DebugBoid)>,
-    // boids: Query<&Transform>,
+    query: Query<(Entity, &Transform, &Separation, &DebugBoid)>,
+    // behaviours: Query<&Transform>,
     //  rules: Res<BoidsRules>,
     // mut lines: ResMut<DebugLines>,
     //map: Res<VoxelSpace>,
 ) {
     for (_ent, _tf, _, _) in &query {
-        // Display only for debug_cohesion enabled boids
+        // Display only for debug_cohesion enabled behaviours
 
         //let map_coord = map.global_to_map_loc(&tf.translation);
         //let neighbours = map.get_nearby_ent(&map_coord);
 
-        //let val = measure_separation(ent, &boids, neighbours, rules.perception_range);
+        //let val = measure_separation(ent, &behaviours, neighbours, rules.perception_range);
 
         //    lines.line_colored(tf.translation, tf.translation + val, 0.0, Color::ANTIQUE_WHITE);
     }
 }
 
 fn debug_alignment(
-    query: Query<(Entity, &Transform, &Velocity, &BoidsAlignment, &DebugBoid)>,
+    query: Query<(Entity, &Transform, &Velocity, &Alignment, &DebugBoid)>,
     //list: Query<(&Transform, &Velocity)>,
     //rules: Res<BoidsRules>,
     //map: Res<VoxelSpace>,
     // mut lines: ResMut<DebugLines>,
 ) {
     for (_, _, _, _, debug_boid) in query.iter() {
-        // Display only for debug_cohesion enabled boids
+        // Display only for debug_cohesion enabled behaviours
         if !debug_boid.show_alignment {
             continue;
         }

@@ -3,21 +3,24 @@ extern crate bevy;
 use bevy::math::vec2;
 use bevy::prelude::*;
 use bevy::sprite::MaterialMesh2dBundle;
+use bevy_flock::behaviours::{Coherence, Separation};
 use bevy_flock::camera_control::{camera_drag, camera_zoom};
 use bevy_flock::debug_systems::{BoidsDebugTools, DebugBoid};
-use bevy_flock::flock::{BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameArea, WorldBoundForce};
-use bevy_flock::physics::{obstacle_avoidance_system, ObstacleAvoidance};
-use bevy_flock::{BaseFlockBundle, flock, FlockingPlugin};
-use bevy_rapier2d::prelude::*;
+use bevy_flock::flock::{
+    BoidsAlignment, BoidsCoherence, BoidsRules, BoidsSeparation, DesiredVelocity, GameArea,
+    WorldBoundForce,
+};
 use bevy_flock::perception::Perception;
+use bevy_flock::physics::{obstacle_avoidance_system, ObstacleAvoidance};
+use bevy_flock::{flock, BaseFlockBundle, SteeringPlugin};
+use bevy_rapier2d::prelude::*;
 
 fn main() {
     App::new()
         .add_startup_system(setup)
         .add_plugins(DefaultPlugins)
-        .add_plugin(FlockingPlugin)
+        .add_plugin(SteeringPlugin)
         .add_plugin(BoidsDebugTools)
-
         .insert_resource(GameArea {
             area: Rect::from_center_half_size(Vec2::ZERO, vec2(3000.0, 1200.0)),
         })
@@ -26,8 +29,6 @@ fn main() {
             max_force: 800.0,
             max_velocity: 125.0,
         })
-
-        .add_system(obstacle_avoidance_system)
         .add_system(camera_drag)
         .add_system(camera_zoom)
         .run();
@@ -51,15 +52,15 @@ fn setup(
             range: perception,
             ..default()
         })
-            .insert(BoidsCoherence { factor: 4.0 })
-            .insert(BoidsSeparation {
-                factor: 8.0,
-                distance: 10.0,
-            })
-            .insert(BoidsAlignment { factor: 2.0 })
-            .insert(WorldBoundForce { factor: 4.0 })
-            .insert(ObstacleAvoidance { factor: 50.0 })
-            .insert(DesiredVelocity { factor: 1.0 });
+        .insert(Coherence { factor: 4.0 })
+        .insert(Separation {
+            factor: 8.0,
+            distance: 10.0,
+        })
+        .insert(BoidsAlignment { factor: 2.0 })
+        .insert(WorldBoundForce { factor: 4.0 })
+        .insert(ObstacleAvoidance { factor: 50.0 })
+        .insert(DesiredVelocity { factor: 1.0 });
     });
 
     commands
