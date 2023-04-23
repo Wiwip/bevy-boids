@@ -8,26 +8,38 @@ pub fn boundaries_system(
 ) {
     for (tf, bound, steer) in &mut query {
         let mut force = Vec3::ZERO;
-        if tf.translation.x >= rules.area.max.x {
+        if tf.translation.x >= rules.area.max_x {
             // Right X bound
-            let delta = rules.area.max.x - tf.translation.x;
+            let delta = rules.area.max_x - tf.translation.x;
             force.x = delta * bound.factor;
-        } else if tf.translation.x <= rules.area.min.x {
+        } else if tf.translation.x <= rules.area.min_x {
             // Left X bound
-            let delta = rules.area.min.x - tf.translation.x;
+            let delta = rules.area.min_x - tf.translation.x;
             force.x = delta * bound.factor;
         }
 
-        if tf.translation.y <= rules.area.min.y {
+        if tf.translation.y <= rules.area.min_y {
             //.bottom {
             // Lower Y bound
-            let delta = rules.area.min.y - tf.translation.y;
+            let delta = rules.area.min_y - tf.translation.y;
             force.y = delta * bound.factor;
-        } else if tf.translation.y >= rules.area.max.y {
+        } else if tf.translation.y >= rules.area.max_y {
             //.top {
             // Top Y bound
-            let delta = rules.area.max.y - tf.translation.y;
+            let delta = rules.area.max_y - tf.translation.y;
             force.y = delta * bound.factor;
+        }
+
+        if tf.translation.z <= rules.area.min_z {
+            //.bottom {
+            // Lower Z bound
+            let delta = rules.area.min_z - tf.translation.z;
+            force.z = delta * bound.factor;
+        } else if tf.translation.z >= rules.area.max_z {
+            //.top {
+            // Top Z bound
+            let delta = rules.area.max_z - tf.translation.z;
+            force.z = delta * bound.factor;
         }
 
         if force != Vec3::ZERO {

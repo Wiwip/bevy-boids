@@ -77,7 +77,7 @@ impl Plugin for SteeringPlugin {
                         ivec3(0, -1, 0),
                         ivec3(1, -1, 0),
                     ],
-                    cell_size: 38.0,
+                    cell_size: 128.0,
                 }),
             });
     }
@@ -89,8 +89,8 @@ pub struct BaseFlockBundle {
     pub perception: Perception,
     pub vel: Velocity,
     pub acc: Acceleration,
-    pub sp: SpriteBundle,
-    integrator: SteeringPressure,
+    pub mesh: SceneBundle,
+    pub integrator: SteeringPressure,
 }
 impl Default for BaseFlockBundle {
     fn default() -> Self {
@@ -99,7 +99,7 @@ impl Default for BaseFlockBundle {
             perception: Perception::default(),
             vel: Velocity::default(),
             acc: Acceleration::default(),
-            sp: SpriteBundle::default(),
+            mesh: Default::default(),
             integrator: SteeringPressure::default(),
         }
     }
