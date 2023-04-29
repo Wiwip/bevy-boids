@@ -2,18 +2,18 @@
 
 ---
 
-Bevy-boids is a simulator supporting hundreds of generic boids based on steering behaviours designed by [Craig Reynolds](https://www.red3d.com/cwr/boids/).
+Bevy-boids is an example of a boids simulation from steering behaviours as designed by [Craig Reynolds](https://www.red3d.com/cwr/boids/).
 
-For now, its only fun to look at, but I'm hoping to add more interesting or emergent behaviours.
 
 ## QuickStart
-All that's required is to add the plugin and spawn the entities
+Add the plugin and spawn the entities
 
 ```Rust
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
-        .add_plugin(FlockingPlugin) // flocking plugin
+        .add_plugin(SteeringPlugin) // flocking plugin
+        .add_plugin(BoidsPlugin) // boids plugin to adjust behaviours
         .add_startup_system(setup)
         .run();
 }
@@ -22,11 +22,49 @@ fn setup(
     mut commands: Commands,
     game: Res<GameArea>,
 ) {
-    commands.spawn(Camera2dBundle::default());
+    commands
+        .spawn(Camera3dBundle {
+            transform: Transform::from_xyz(50., 100., 150.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ..default()
+        });
 
-    let perception = 32.;
-    let list = flock::new(4000, game.area, perception);
-    commands.spawn_batch(list);
+    let perception = 10.0;
+    let count = 1000;
+
+    for _ in 0..count {
+        let boid = BaseFlockBundle {
+            boid: Boid {
+                color: Color::BLACK,
+            },
+            perception: Default::default(),
+            vel: Velocity {
+                vec: random_direction(),
+            },
+            acc: Default::default(),
+            mesh: SceneBundle {
+                scene: asset_server.load("models/bird.gltf#Scene0"),
+                transform: random_transform(rules.area),
+                ..default()
+            },
+            integrator: Default::default(),
+        };
+
+        commands
+            .spawn(boid)
+            .insert(Perception {
+                range: perception,
+                ..default()
+            })
+            .insert(Coherence { factor: 4.0 })
+            .insert(Separation {
+                factor: 8.0,
+                distance: 0.75,
+            })
+            .insert(Alignment { factor: 2.0 })
+            .insert(WorldBound { factor: 4.0 })
+            .insert(ObstacleAvoidance { factor: 50.0 })
+            .insert(DesiredVelocity { factor: 0.1 });
+    }
 }
 ```
 
@@ -37,21 +75,6 @@ fn setup(
 On my machine, simulations beyond 5,000 boids on a small world start to kill performance which is an upgrade from the 1,000 without spatial data structure.
 I understand that compute shaders are a key way to extend to more entities.
 
-The key elements that will affect your performance are the quantity of entities, but also their density and perception ranges. 
-By increasing the game area to 20_000 by 16_000 and the entity count to 12_000 (32. perception), I still have 60 fps.
-
-The biggest cost to the simulation are 'what are the boids in range?' which turns to be O(n^2) using the brute force method.
-### R-Tree ([rstar crate](https://crates.io/crates/rstar))
-The R-Tree is the most expensive to build, but query times for "within(range)" are almost constant.
-
-### Kd-Tree ([kd-tree crate](https://crates.io/crates/kd-tree))
-The Kd-Tree is the fastest tree to build, but the query times are so slow compared to the R-Tree that I have to wonder if I made a mistake in the implementation of the queries.
-
-### HashMap (this)
-The HashMap is a nice in-between other spatial data structure. Its performance are likely affected by my basic and naive implementation.
-
-### QuadTree
-todo!()
 
 ## Desired Features
 ### General
