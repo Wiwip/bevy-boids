@@ -4,6 +4,7 @@
 
 Bevy-boids is an example of a boids simulation from steering behaviours as designed by [Craig Reynolds](https://www.red3d.com/cwr/boids/).
 
+https://user-images.githubusercontent.com/5385314/235312447-15393d30-3173-4792-874c-4e4b4981d2d7.mp4
 
 ## QuickStart
 Add the plugin and spawn the entities
