@@ -2,8 +2,7 @@ use crate::flock::BoidsRules;
 use crate::velocity_angle;
 use bevy::ecs::entity::Entity;
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
-use rand_distr::weighted_alias::AliasableWeight;
+use bevy_rapier3d::prelude::*;
 use std::ops::Mul;
 
 #[derive(Component, Copy, Clone, Default)]
@@ -68,7 +67,7 @@ pub fn find_obstacles_in_range(
     let filter = QueryFilter::default();
     let mut entities = Vec::new();
 
-    context.intersections_with_shape(location.truncate(), Rot::ZERO, &shape, filter, |entity| {
+    context.intersections_with_shape(location, Rot::default(), &shape, filter, |entity| {
         entities.push(entity);
         true // Continue searching for other colliders
     });
@@ -87,9 +86,9 @@ pub fn find_obstacles_in_range(
 /// returns: Vec2
 pub fn find_nearest_point_on_collider(
     context: &Res<RapierContext>,
-    from_position: Vec2,
+    from_position: Vec3,
     target_entity: Entity,
-) -> Vec2 {
+) -> Vec3 {
     let binding = |e| e == target_entity;
     let filter = QueryFilter::default().predicate(&binding);
 

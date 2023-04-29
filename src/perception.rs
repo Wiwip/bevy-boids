@@ -1,6 +1,6 @@
 use crate::spatial::partition::SpatialRes;
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
+use bevy_rapier3d::prelude::*;
 
 #[derive(Component, Default)]
 pub struct Perception {
@@ -12,19 +12,18 @@ pub fn rapier_perception_system(
     mut query: Query<(&mut Perception, &Transform)>,
     rapier: Res<RapierContext>,
 ) {
-    let rotation = 0.0;
     let filter = QueryFilter::default();
 
     for (mut per, tf) in &mut query {
         let mut list = Vec::new();
         let shape = Collider::ball(per.range);
-        let pos = tf.translation.truncate();
+        let pos = tf.translation;
 
         // Clear previously perceived entities
         per.list.clear();
 
         // Cast shape and add perceived entities to list
-        rapier.intersections_with_shape(pos, rotation, &shape, filter, |e| {
+        rapier.intersections_with_shape(pos, Rot::default(), &shape, filter, |e| {
             let _ = &list.push(e);
             true
         });

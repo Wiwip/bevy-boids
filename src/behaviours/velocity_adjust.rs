@@ -1,7 +1,11 @@
-use crate::behaviours::DesiredVelocity;
 use crate::flock::{BoidsRules, SteeringPressure};
 use crate::physics::Velocity;
 use bevy::prelude::*;
+
+#[derive(Component, Default)]
+pub struct DesiredVelocity {
+    pub factor: f32,
+}
 
 pub fn desired_velocity_system(
     query: Query<(&Velocity, &DesiredVelocity, &SteeringPressure)>,

@@ -2,7 +2,7 @@ use crate::behaviours::alignment::alignment_system;
 use crate::behaviours::bounds::boundaries_system;
 use crate::behaviours::coherence::coherence_system;
 use crate::behaviours::separation::separation_system;
-use crate::behaviours::velocity::desired_velocity_system;
+use crate::behaviours::velocity_adjust::desired_velocity_system;
 use crate::BoidStage;
 use bevy::prelude::*;
 
@@ -11,33 +11,13 @@ pub mod avoidance;
 pub mod bounds;
 pub mod coherence;
 pub mod separation;
-pub mod velocity;
+pub mod velocity_adjust;
 
-#[derive(Component, Default)]
-pub struct Alignment {
-    pub factor: f32,
-}
-
-#[derive(Component, Default)]
-pub struct Coherence {
-    pub factor: f32,
-}
-
-#[derive(Component, Default)]
-pub struct Separation {
-    pub factor: f32,
-    pub distance: f32,
-}
-
-#[derive(Component, Default)]
-pub struct DesiredVelocity {
-    pub factor: f32,
-}
-
-#[derive(Component, Default)]
-pub struct WorldBound {
-    pub factor: f32,
-}
+pub use alignment::Alignment;
+pub use bounds::WorldBound;
+pub use coherence::Coherence;
+pub use separation::Separation;
+pub use velocity_adjust::DesiredVelocity;
 
 pub struct BoidsPlugin;
 

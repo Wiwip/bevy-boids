@@ -9,18 +9,15 @@ use crate::physics::{
 use crate::spatial::partition::{spatial_hash_system, SpatialRes};
 use bevy::math::ivec3;
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
+use bevy_rapier3d::prelude::*;
 use spatial::index_partition::IndexPartition;
 
 pub mod behaviours;
 pub mod boid;
-pub mod camera_control;
-pub mod debug_systems;
 pub mod flock;
 pub mod interface;
 pub mod perception;
 pub mod physics;
-pub mod predator;
 pub mod spatial;
 
 pub fn velocity_angle(vel: &Vec3) -> f32 {
@@ -55,10 +52,10 @@ impl Plugin for SteeringPlugin {
         app.configure_set(BoidStage::ForceIntegration.before(BoidStage::ForceApplication));
 
         // Rapier mandatory data
-        app.add_plugin(RapierPhysicsPlugin::<NoUserData>::pixels_per_meter(100.0))
+        app.add_plugin(RapierPhysicsPlugin::<NoUserData>::default())
             .add_plugin(RapierDebugRenderPlugin::default())
             .insert_resource(RapierConfiguration {
-                gravity: Vec2::ZERO,
+                gravity: Vec3::ZERO,
                 physics_pipeline_active: false,
                 query_pipeline_active: true,
                 ..default()
@@ -77,7 +74,7 @@ impl Plugin for SteeringPlugin {
                         ivec3(0, -1, 0),
                         ivec3(1, -1, 0),
                     ],
-                    cell_size: 128.0,
+                    cell_size: 64.0,
                 }),
             });
     }

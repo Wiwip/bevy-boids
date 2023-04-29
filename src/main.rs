@@ -1,14 +1,13 @@
 extern crate bevy;
 
-use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
 use bevy::math::vec3;
+use bevy::pbr::CascadeShadowConfigBuilder;
 use bevy::prelude::*;
 use bevy_flock::behaviours::avoidance::ObstacleAvoidance;
 use bevy_flock::behaviours::{
     Alignment, BoidsPlugin, Coherence, DesiredVelocity, Separation, WorldBound,
 };
 use bevy_flock::boid::Boid;
-use bevy_flock::debug_systems::{BoidsDebugTools, DebugBoid};
 use bevy_flock::flock::{random_direction, random_transform, BoidsRules, GameArea};
 use bevy_flock::perception::Perception;
 use bevy_flock::physics::Velocity;
@@ -23,22 +22,17 @@ fn main() {
         }))
         .add_plugin(SteeringPlugin)
         .add_plugin(BoidsPlugin)
-        .add_plugin(BoidsDebugTools)
-        //.add_plugin(LogDiagnosticsPlugin::default())
-        //.add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_plugin(NoCameraPlayerPlugin)
         .insert_resource(GameArea {
             offset: Vec3::ZERO,
-            area: shape::Box::new(1400.0, 1000.0, 1000.0),
+            area: shape::Box::new(100.0, 100.0, 100.0),
         })
         .insert_resource(BoidsRules {
-            desired_speed: 175.0,
+            desired_speed: 50.0,
             max_force: 1000.0,
-            max_velocity: 225.0,
+            max_velocity: 100.0,
         })
         .add_startup_system(setup)
-        // .add_system(camera_drag)
-        // .add_system(camera_zoom)
         .run();
 }
 
@@ -52,12 +46,12 @@ fn setup(
 ) {
     commands
         .spawn(Camera3dBundle {
-            transform: Transform::from_xyz(0., 200., 1800.0).looking_at(Vec3::ZERO, Vec3::Y),
+            transform: Transform::from_xyz(50., 100., 150.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         })
         .insert(FlyCam);
 
-    let perception = 128.0;
+    let perception = 10.0;
     let count = 1000;
 
     for _ in 0..count {
@@ -87,7 +81,7 @@ fn setup(
             .insert(Coherence { factor: 4.0 })
             .insert(Separation {
                 factor: 8.0,
-                distance: 4.0,
+                distance: 0.75,
             })
             .insert(Alignment { factor: 2.0 })
             .insert(WorldBound { factor: 4.0 })
@@ -96,55 +90,73 @@ fn setup(
     }
 
     commands.spawn(PbrBundle {
-        mesh: meshes.add(shape::Plane::from_size(2000.0).into()),
+        mesh: meshes.add(shape::Plane::from_size(200.0).into()),
         material: materials.add(Color::rgb(0.3, 0.5, 0.3).into()),
         transform: Transform {
-            translation: vec3(0., -600., 0.),
+            translation: vec3(0., -100., 0.),
             //rotation: Quat::from_rotation_x(0.0),
             ..default()
         },
         ..default()
     });
 
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
-            intensity: 50000.0,
+    // directional 'sun' light
+    commands.spawn(DirectionalLightBundle {
+        directional_light: DirectionalLight {
             shadows_enabled: true,
             ..default()
         },
-        transform: Transform::from_xyz(0.0, 0.0, 0.0),
+        transform: Transform {
+            translation: Vec3::new(200.0, 200.0, 100.0),
+            rotation: Quat::from_rotation_x(180.),
+            ..default()
+        },
+        cascade_shadow_config: CascadeShadowConfigBuilder {
+            num_cascades: 4,
+            first_cascade_far_bound: 250.0,
+            maximum_distance: 1000.0,
+            ..default()
+        }
+        .into(),
         ..default()
     });
 
-
+    // X
+    let transform = Transform::from_xyz(5., -50., 0.);
     commands.spawn(PbrBundle {
-        mesh: meshes.add(Mesh::from(shape::Cube { size: 50.0 })),
-        material: materials.add(Color::rgb(0.8, 0.7, 0.6).into()),
-        transform: Transform::from_xyz(0.0, -300.0, 0.0),
+        mesh: meshes.add(Mesh::from(shape::Box::new(10.0, 1.0, 1.0))),
+        transform,
+        material: materials.add(StandardMaterial {
+            base_color: Color::BLUE,
+            perceptual_roughness: 1.0,
+            ..default()
+        }),
         ..default()
     });
 
-    /* commands
-        .spawn(BaseFlockBundle::default())
-        .insert(MaterialMesh2dBundle {
-            mesh: meshes.add(shape::Circle::new(perception).into()).into(),
-            material: materials.add(ColorMaterial::from(Color::PURPLE)),
-            transform: Transform::from_translation(Vec3::new(0.0, 0.0, 0.0)),
+    // Y
+    let transform = Transform::from_xyz(0., -45., 0.);
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Box::new(1.0, 10.0, 1.0))),
+        transform,
+        material: materials.add(StandardMaterial {
+            base_color: Color::GREEN,
+            perceptual_roughness: 1.0,
             ..default()
-        })
-        .insert(DebugBoid::default())
-        .insert(Perception {
-            range: perception,
+        }),
+        ..default()
+    });
+
+    // Z
+    let transform = Transform::from_xyz(0., -50., 5.);
+    commands.spawn(PbrBundle {
+        mesh: meshes.add(Mesh::from(shape::Box::new(1.0, 1.0, 10.0))),
+        transform,
+        material: materials.add(StandardMaterial {
+            base_color: Color::RED,
+            perceptual_roughness: 1.0,
             ..default()
-        })
-        .insert(Coherence { factor: 6.0 })
-        .insert(Separation {
-            factor: 4.0,
-            distance: 10.0,
-        })
-        .insert(Alignment { factor: 1.0 })
-        .insert(WorldBound { factor: 4.0 })
-        .insert(ObstacleAvoidance { factor: 50.0 })
-        .insert(DesiredVelocity { factor: 1.0 });
-    */
+        }),
+        ..default()
+    });
 }

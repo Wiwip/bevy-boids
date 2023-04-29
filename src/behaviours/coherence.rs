@@ -1,7 +1,11 @@
-use crate::behaviours::Coherence;
 use crate::flock::SteeringPressure;
 use crate::perception::Perception;
 use bevy::prelude::*;
+
+#[derive(Component, Default)]
+pub struct Coherence {
+    pub factor: f32,
+}
 
 pub fn coherence_system(
     query: Query<(Entity, &Perception, &Coherence, &SteeringPressure)>,

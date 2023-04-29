@@ -1,7 +1,12 @@
-use crate::behaviours::Separation;
 use crate::flock::SteeringPressure;
 use crate::perception::Perception;
 use bevy::prelude::*;
+
+#[derive(Component, Default)]
+pub struct Separation {
+    pub factor: f32,
+    pub distance: f32,
+}
 
 pub fn separation_system(
     query: Query<(Entity, &Perception, &Separation, &SteeringPressure)>,

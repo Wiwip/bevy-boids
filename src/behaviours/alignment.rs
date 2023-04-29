@@ -1,8 +1,12 @@
-use crate::behaviours::Alignment;
 use crate::flock::SteeringPressure;
 use crate::perception::Perception;
 use crate::physics::Velocity;
 use bevy::prelude::*;
+
+#[derive(Component, Default)]
+pub struct Alignment {
+    pub factor: f32,
+}
 
 pub fn alignment_system(
     query: Query<(Entity, &Perception, &Alignment, &SteeringPressure)>,

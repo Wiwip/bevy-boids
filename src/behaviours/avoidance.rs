@@ -3,7 +3,7 @@ use crate::perception::Perception;
 use crate::physics::{find_nearest_point_on_collider, find_obstacles_in_range};
 use bevy::math::vec3;
 use bevy::prelude::*;
-use bevy_rapier2d::prelude::*;
+use bevy_rapier3d::prelude::*;
 
 #[derive(Component, Default)]
 pub struct ObstacleAvoidance {
@@ -41,13 +41,13 @@ fn obstacle_avoid_steering(
 ) -> Vec3 {
     let mut count = 0;
 
-    let mut steer: Vec2 = entities
+    let mut steer: Vec3 = entities
         .into_iter()
         .map(|e| {
             count += 1;
 
-            let point = find_nearest_point_on_collider(context, actor_pos.truncate(), *e);
-            let separation = -1.0 * (point - actor_pos.truncate());
+            let point = find_nearest_point_on_collider(context, actor_pos, *e);
+            let separation = -1.0 * (point - actor_pos);
 
             separation
         })
@@ -57,6 +57,6 @@ fn obstacle_avoid_steering(
         steer = steer / count as f32;
     }
 
-    let steering = vec3(steer.x, steer.y, 0.0);
+    let steering = vec3(steer.x, steer.y, steer.z);
     return steering;
 }

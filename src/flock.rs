@@ -35,7 +35,6 @@ pub fn boid_integrator_system(mut query: Query<(&mut Acceleration, &SteeringPres
     }
 }
 
-
 pub fn random_transform(area: shape::Box) -> Transform {
     let mut rng = rand::thread_rng();
 
@@ -43,7 +42,7 @@ pub fn random_transform(area: shape::Box) -> Transform {
     let pos = vec3(
         rng.gen_range(area.min_x..area.max_x),
         rng.gen_range(area.min_y..area.max_y),
-        rng.gen_range(area.min_z..area.max_z)
+        rng.gen_range(area.min_z..area.max_z),
     );
 
     // Create and return transform component

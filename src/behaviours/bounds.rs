@@ -1,6 +1,10 @@
-use crate::behaviours::WorldBound;
 use crate::flock::{GameArea, SteeringPressure};
 use bevy::prelude::*;
+
+#[derive(Component, Default)]
+pub struct WorldBound {
+    pub factor: f32,
+}
 
 pub fn boundaries_system(
     mut query: Query<(&Transform, &WorldBound, &SteeringPressure)>,
